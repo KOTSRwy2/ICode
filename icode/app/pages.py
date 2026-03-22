@@ -1,0 +1,529 @@
+# -*- coding: utf-8 -*-
+import os
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog
+)
+
+from qfluentwidgets import (
+    ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
+    OptionsSettingCard, OptionsConfigItem, OptionsValidator,
+    qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
+    TextEdit, ComboBox, LineEdit, IndeterminateProgressBar, CardWidget,
+    SubtitleLabel, BodyLabel
+)
+from qfluentwidgets import FluentIcon as FIF
+
+from .core import log_manager, WorkerThread, FMRIWorkerThread, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
+from source_localization import run_source_localization
+from connectivity_visualization import run_connectivity_visualization
+from fmri_visualization import FMRIProcessor
+
+# ==========================================
+# 基础功能页面模板 (包含固定底部的进度状态栏)
+# ==========================================
+class BaseFunctionPage(ScrollArea):
+    """提取四大功能页的共用逻辑：标题、文件选择、运行按钮、以及置底的进度条"""
+    def __init__(self, title: str, description: str, module_name: str, parent=None):
+        super().__init__(parent=parent)
+        self.module_name = module_name
+        self.setObjectName(title.replace(" ", "_"))
+        
+        # 消除黑色突兀边框，保持右侧页面透明和自带圆角
+        self.setWidgetResizable(True)
+        self.setFrameShape(self.NoFrame)
+        self.setStyleSheet("QScrollArea {background: transparent; border: none;}")
+        
+        self.view = QWidget(self)
+        self.view.setObjectName("FunctionPageView")
+        self.view.setStyleSheet("QWidget#FunctionPageView {background: transparent;}")
+        
+        # 主布局
+        self.main_layout = QVBoxLayout(self.view)
+        self.main_layout.setContentsMargins(36, 36, 36, 36)
+        self.main_layout.setSpacing(24)
+        
+        # 建立标题区
+        self.title_label = SubtitleLabel(title, self.view)
+        self.desc_label = BodyLabel(description, self.view)
+        self.desc_label.setStyleSheet("color: #666666;")
+        
+        self.main_layout.addWidget(self.title_label)
+        self.main_layout.addWidget(self.desc_label)
+        
+        # 内容填充区 (子类在这里添加自己的输入和设置控件)
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(16)
+        self.main_layout.addLayout(self.content_layout)
+        
+        self.main_layout.addStretch(1)
+        
+        # 底部状态展示区 (固定在页面下方)
+        self._build_status_bar()
+        self.main_layout.addWidget(self.status_container)
+
+        self.setWidget(self.view)
+        
+        self.worker = None # 后台工作线程引用，防止被回收
+
+    def _build_status_bar(self):
+        # 进度状态外层布局
+        self.status_container = QWidget(self.view)
+        self.status_layout = QVBoxLayout(self.status_container)
+        self.status_layout.setContentsMargins(0, 0, 0, 0)
+        self.status_layout.setSpacing(6)
+
+        # 状态小字，靠右对齐
+        self.status_label = BodyLabel("当前状态...", self.status_container)
+        self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.status_label.setStyleSheet("color: #666666; font-size: 13px;")
+        
+        # 左右循环播放的进度条
+        self.progress_bar = IndeterminateProgressBar(self.status_container,0.4)
+        self.status_layout.addWidget(self.status_label)
+        self.status_layout.addWidget(self.progress_bar)
+        
+        # 默认隐藏整个组件，运行时才展现
+        self.status_container.setVisible(False)
+
+    def set_running_state(self, is_running: bool, msg: str = "运行中..."):
+        """统一切换底部状态：运行时显示并开启控件锁，否则关闭条幅"""
+        self.status_container.setVisible(is_running)
+        self.status_label.setText(msg)
+        self.view.setEnabled(not is_running) # 运行期间锁定页面除状态栏外的操作
+
+    def check_file_selected(self, file_path: str, ext_tuple: tuple, err_msg: str):
+        if not file_path:
+            InfoBar.warning("提示", "请选择需要处理的文件。", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        if not os.path.exists(file_path):
+            InfoBar.error("错误", "所选文件不存在。", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        if not file_path.endswith(ext_tuple):
+            InfoBar.error("错误", err_msg, parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        return True
+
+    def show_success_dialog(self, title: str, content: str):
+        # 优化原有的弹窗，使用 InfoBar 组件在页面内进行不打断的通知
+        InfoBar.success(
+            title=title,
+            content=content,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.BOTTOM_RIGHT,
+            duration=3000,
+            parent=self.window()
+        )
+
+    def show_error_dialog(self, title: str, content: str):
+        InfoBar.error(
+            title=title,
+            content=content,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.BOTTOM_RIGHT,
+            duration=-1,
+            parent=self.window()
+        )
+
+
+# ==========================================
+# EEG 源定位页面
+# ==========================================
+class EEGSourcePage(BaseFunctionPage):
+    def __init__(self, parent=None):
+        super().__init__("EEG 源定位可视化", "读取 BDF 文件并执行 3D 大脑源定位", MODULE_EEG_SOURCE, parent)
+        self.bdf_path = ""
+        self._init_ui()
+
+    def _init_ui(self):
+        file_layout = QHBoxLayout()
+        self.path_edit = LineEdit(self.view)
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setPlaceholderText("选择一个 .bdf 脑电文件")
+        
+        self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
+        self.btn_select.clicked.connect(self._select_file)
+        
+        file_layout.addWidget(self.path_edit)
+        file_layout.addWidget(self.btn_select)
+        
+        dur_layout = QHBoxLayout()
+        dur_label = BodyLabel("截取时长：", self.view)
+        self.duration_box = ComboBox(self.view)
+        self.duration_box.addItems(["5 秒", "10 秒", "30 秒", "60 秒", "全部"])
+        
+        dur_layout.addWidget(dur_label)
+        dur_layout.addWidget(self.duration_box)
+        dur_layout.addStretch(1)
+
+        self.btn_run = PushButton("执行 EEG 源定位", self.view, FIF.PLAY)
+        self.btn_run.clicked.connect(self._run_task)
+
+        self.content_layout.addLayout(file_layout)
+        self.content_layout.addLayout(dur_layout)
+        self.content_layout.addWidget(self.btn_run)
+
+    def _select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
+        if file_path:
+            self.bdf_path = file_path
+            self.path_edit.setText(file_path)
+            log_manager.add_log(f"已选择 BDF 文件: {file_path}", self.module_name)
+
+    def _run_task(self):
+        if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
+            return
+
+        text = self.duration_box.currentText()
+        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
+        duration_sec = mapping[text]
+
+        self.set_running_state(True, "初始化读取EEG数据...")
+        log_manager.add_log("开始运行 EEG 源定位...", self.module_name)
+
+        # 构建后台任务以防止界面假死并可接收实时进度文本
+        self.worker = WorkerThread(run_source_localization, self.bdf_path, duration_sec=duration_sec)
+        
+        # 接收到子线程的日志后更新界面展示文字，同时记入总日志
+        def update_log(msg):
+            self.status_label.setText(f"目前步骤: {msg}")
+            log_manager.add_log(msg, self.module_name)
+            
+        self.worker.log_sig.connect(update_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
+
+    def _on_task_finished(self, success, msg):
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+        if success:
+            log_manager.add_log("EEG 源定位运行成功完成", self.module_name)
+            self.show_success_dialog("操作成功", "EEG源定位已完成，弹出并渲染3D窗口。")
+        else:
+            log_manager.add_log(f"EEG 源定位运行失败: {msg}", self.module_name)
+            self.show_error_dialog("运行失败", f"源定位过程中发生错误:\n{msg}")
+
+
+# ==========================================
+# EEG 功能连接页面
+# ==========================================
+class EEGConnectivityPage(BaseFunctionPage):
+    def __init__(self, parent=None):
+        super().__init__("EEG 功能连接分析", "计算频带连接强度并导出交互式图表", MODULE_EEG_CONN, parent)
+        self.bdf_path = ""
+        self._init_ui()
+
+    def _init_ui(self):
+        file_layout = QHBoxLayout()
+        self.path_edit = LineEdit(self.view)
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setPlaceholderText("选择一个 .bdf 脑电文件")
+        
+        self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
+        self.btn_select.clicked.connect(self._select_file)
+        
+        file_layout.addWidget(self.path_edit)
+        file_layout.addWidget(self.btn_select)
+        
+        dur_layout = QHBoxLayout()
+        dur_label = BodyLabel("截取时长：", self.view)
+        self.duration_box = ComboBox(self.view)
+        self.duration_box.addItems(["5 秒", "10 秒", "30 秒", "60 秒", "全部"])
+        
+        dur_layout.addWidget(dur_label)
+        dur_layout.addWidget(self.duration_box)
+        dur_layout.addStretch(1)
+
+        self.btn_run = PushButton("执行功能连接分析", self.view, FIF.PLAY)
+        self.btn_run.clicked.connect(self._run_task)
+
+        self.content_layout.addLayout(file_layout)
+        self.content_layout.addLayout(dur_layout)
+        self.content_layout.addWidget(self.btn_run)
+
+    def _select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
+        if file_path:
+            self.bdf_path = file_path
+            self.path_edit.setText(file_path)
+            log_manager.add_log(f"已选择 BDF 文件: {file_path}", self.module_name)
+
+    def _run_task(self):
+        if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
+            return
+
+        text = self.duration_box.currentText()
+        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
+        duration_sec = mapping[text]
+
+        self.set_running_state(True, "初始化连接分析网络...")
+        log_manager.add_log("开始运行 EEG 功能连接...", self.module_name)
+
+        self.worker = WorkerThread(run_connectivity_visualization, self.bdf_path, duration_sec=duration_sec)
+        
+        def update_log(msg):
+            self.status_label.setText(f"目前步骤: {msg}")
+            log_manager.add_log(msg, self.module_name)
+            
+        self.worker.log_sig.connect(update_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
+
+    def _on_task_finished(self, success, out_path):
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+        if success:
+            log_manager.add_log(f"功能连接导出成功: {out_path}", self.module_name)
+            self.show_success_dialog("任务完成", f"结果已保存并尝试打开:\n{out_path}")
+        else:
+            log_manager.add_log(f"分析失败: {out_path}", self.module_name)
+            self.show_error_dialog("分析失败", f"发生了未知错误:\n{out_path}")
+
+
+# ==========================================
+# fMRI 激活定位页面
+# ==========================================
+class FMRIActivationPage(BaseFunctionPage):
+    def __init__(self, parent=None):
+        super().__init__("fMRI 脑区激活定位", "生成并展示皮层 fMRI 激活热力图", MODULE_FMRI_ACT, parent)
+        self.fmri_path = ""
+        self._init_ui()
+
+    def _init_ui(self):
+        file_layout = QHBoxLayout()
+        self.path_edit = LineEdit(self.view)
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setPlaceholderText("选择一个 .nii / .nii.gz 脑影像文件")
+        
+        self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
+        self.btn_select.clicked.connect(self._select_file)
+        
+        file_layout.addWidget(self.path_edit)
+        file_layout.addWidget(self.btn_select)
+
+        self.btn_run = PushButton("一键分析激活脑区", self.view, FIF.PLAY)
+        self.btn_run.clicked.connect(self._run_task)
+
+        self.content_layout.addLayout(file_layout)
+        self.content_layout.addWidget(self.btn_run)
+
+    def _select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
+        if file_path:
+            self.fmri_path = file_path
+            self.path_edit.setText(file_path)
+            log_manager.add_log(f"选择文件: {file_path}", self.module_name)
+
+    def _run_task(self):
+        if not self.check_file_selected(self.fmri_path, (".nii", ".nii.gz"), "请选择支持的 fmri 格式文件"):
+            return
+
+        self.set_running_state(True, "初始化 fMRI 处理管道...")
+        log_manager.add_log("开始 fMRI 脑区激活分析...", self.module_name)
+
+        self.worker = FMRIWorkerThread(FMRIProcessor, self.fmri_path, tr=2.0, mode="activation")
+        def update_log(msg):
+            self.status_label.setText(f"处理中: {msg}")
+            log_manager.add_log(msg, self.module_name)
+
+        self.worker.log_sig.connect(update_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
+
+    def _on_task_finished(self, success, out_path):
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+        if success:
+            log_manager.add_log(f"fMRI 激活图生成完成: {out_path}", self.module_name)
+            self.show_success_dialog("计算完毕", f"已输出 fMRI 脑区激活图到:\n{out_path}")
+        else:
+            log_manager.add_log(f"fMRI 处理失败: {out_path}", self.module_name)
+            self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{out_path}")
+
+
+# ==========================================
+# fMRI 连接分析页面
+# ==========================================
+class FMRIConnectivityPage(BaseFunctionPage):
+    def __init__(self, parent=None):
+        super().__init__("fMRI 功能连接分析", "基于 AAL 标准模板提取并计算网络连通性", MODULE_FMRI_CONN, parent)
+        self.fmri_path = ""
+        self._init_ui()
+
+    def _init_ui(self):
+        file_layout = QHBoxLayout()
+        self.path_edit = LineEdit(self.view)
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setPlaceholderText("选择一个 .nii / .nii.gz 脑影像文件")
+        
+        self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
+        self.btn_select.clicked.connect(self._select_file)
+        
+        file_layout.addWidget(self.path_edit)
+        file_layout.addWidget(self.btn_select)
+
+        self.btn_run = PushButton("计算独立功能网络", self.view, FIF.PLAY)
+        self.btn_run.clicked.connect(self._run_task)
+
+        self.content_layout.addLayout(file_layout)
+        self.content_layout.addWidget(self.btn_run)
+
+    def _select_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
+        if file_path:
+            self.fmri_path = file_path
+            self.path_edit.setText(file_path)
+            log_manager.add_log(f"选择文件: {file_path}", self.module_name)
+
+    def _run_task(self):
+        if not self.check_file_selected(self.fmri_path, (".nii", ".nii.gz"), "请选择支持的 fmri 格式文件"):
+            return
+
+        self.set_running_state(True, "初始化 fMRI 连接分析流水线...")
+        log_manager.add_log("开始计算 ROI 网络...", self.module_name)
+
+        self.worker = FMRIWorkerThread(FMRIProcessor, self.fmri_path, tr=2.0, mode="connectivity")
+        def update_log(msg):
+            self.status_label.setText(f"处理中: {msg}")
+            log_manager.add_log(msg, self.module_name)
+
+        self.worker.log_sig.connect(update_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
+
+    def _on_task_finished(self, success, out_path):
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+        if success:
+            log_manager.add_log(f"fMRI 连接图生成完成: {out_path}", self.module_name)
+            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{out_path}")
+        else:
+            log_manager.add_log(f"连接计算失败: {out_path}", self.module_name)
+            self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{out_path}")
+
+
+# ==========================================
+# 集中化日志报告页面
+# ==========================================
+class LogReportPage(ScrollArea):
+    """独立的系统中心日志监控面板"""
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setObjectName("Log_Report")
+        self.setWidgetResizable(True)
+
+        self.view = QWidget(self)
+        self.main_layout = QVBoxLayout(self.view)
+        self.main_layout.setContentsMargins(36, 36, 36, 36)
+        
+
+        self.setFrameShape(self.NoFrame)
+        self.setStyleSheet("QScrollArea {background: transparent; border: none;}")
+        self.view.setStyleSheet("QWidget {background: transparent;}")
+
+        self.title_label = SubtitleLabel("系统运行日志", self.view)
+        self.main_layout.addWidget(self.title_label)
+        self.main_layout.addSpacing(16)
+        
+        # 过滤器与操作区
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(BodyLabel("日志模块源:", self.view))
+        
+        self.combo_filter = ComboBox(self.view)
+        self.combo_filter.addItems(["全部", MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM])
+        self.combo_filter.currentIndexChanged.connect(self._update_log_display)
+        filter_layout.addWidget(self.combo_filter)
+        
+        self.btn_export = PushButton("导出日志报表", self.view, FIF.DOWNLOAD)
+        self.btn_export.clicked.connect(self._export_log)
+        filter_layout.addWidget(self.btn_export)
+        
+        self.btn_clear = PushButton("清理屏幕", self.view, FIF.DELETE)
+        self.btn_clear.clicked.connect(self._clear_log)
+        filter_layout.addWidget(self.btn_clear)
+        
+        filter_layout.addStretch(1)
+        self.main_layout.addLayout(filter_layout)
+        
+        # 多行只读本文显示区
+        self.text_editor = TextEdit(self.view)
+        self.text_editor.setReadOnly(True)
+        self.text_editor.setPlaceholderText("暂无日志报告...")
+        self.main_layout.addWidget(self.text_editor, stretch=1)
+        
+        self.setWidget(self.view)
+        
+        # 绑定核心派发器刷新UI
+        log_manager.log_updated.connect(self._update_log_display)
+
+    def _update_log_display(self):
+        mod = self.combo_filter.currentText()
+        lines = log_manager.get_logs(mod)
+        self.text_editor.setPlainText("\n".join(lines))
+        self.text_editor.verticalScrollBar().setValue(self.text_editor.verticalScrollBar().maximum())
+
+    def _clear_log(self):
+        log_manager.clear()
+        
+    def _export_log(self):
+        mod = self.combo_filter.currentText()
+        lines = log_manager.get_logs(mod)
+        if not lines:
+            InfoBar.warning("导出提示", "当前过滤器下没有可导出的日志。", parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
+            return
+            
+        path, _ = QFileDialog.getSaveFileName(self, "导出运行记录", f"system_logs_{mod}.txt", "Text Files (*.txt)")
+        if path:
+            with open(path, "w", encoding='utf-8') as f:
+                f.write("\n".join(lines))
+            InfoBar.success("导出完成", f"日志报告已落地到指定记录:\n{path}", parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
+
+
+# ==========================================
+# 通用设置中心页面
+# ==========================================
+class SettingsPage(ScrollArea):
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setObjectName("Global_Settings")
+        self.setWidgetResizable(True)
+
+        self.setFrameShape(self.NoFrame)
+        self.setStyleSheet("QScrollArea {background: transparent; border: none;}")
+        
+        self.view = QWidget(self)
+        self.view.setStyleSheet("QWidget {background: transparent;}")
+        self.expand_layout = ExpandLayout(self.view)
+        self.expand_layout.setContentsMargins(36, 36, 36, 36)
+        
+        self._init_ui()
+
+    def _init_ui(self):
+        title = SubtitleLabel("系统设置", self.view)
+        self.expand_layout.addWidget(title)
+        
+        # 使用分组归类管理项
+        self.personal_group = SettingCardGroup("界面与主题", self.view)
+        
+        # OptionsSettingCard 内部会根据配置项全权负责信号流转和应用更改，不需要也不应该再去手动接管槽去 setTheme，这能根治改变主题时由于多重响应引发的程序崩溃
+        self.theme_card = OptionsSettingCard(
+            qconfig.themeMode, 
+            icon=FIF.BRUSH, 
+            title="应用主题",
+            content="更改应用的外观并重新映射内部颜色",
+            texts=["浅色", "深色", "跟随系统"],
+            parent=self.personal_group
+        )
+        
+        from qfluentwidgets import ColorSettingCard
+        self.color_card = ColorSettingCard(
+            qconfig.themeColor,
+            icon=FIF.PALETTE,
+            title="主题色",
+            content="自定义状态与高亮的指向色",
+            parent=self.personal_group
+        )
+        
+        self.personal_group.addSettingCard(self.theme_card)
+        self.personal_group.addSettingCard(self.color_card)
+        
+        self.expand_layout.addWidget(self.personal_group)
+        self.setWidget(self.view)
