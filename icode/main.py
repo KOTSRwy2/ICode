@@ -8,13 +8,13 @@ main.py
 import sys
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import QApplication
-
 from qfluentwidgets import (
     FluentWindow,
     NavigationItemPosition,
     setTheme, 
     Theme,
-    setThemeColor
+    setThemeColor,
+    qconfig
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -52,7 +52,7 @@ class EEGFMRIFluentApp(FluentWindow):
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
         
         # 设置默认亮色主题以符合科学计算普遍交互观感
-        setTheme(Theme.LIGHT)
+        setTheme(Theme.LIGHT, save=True)
         setThemeColor("#1677ff") # 默认选用医学蓝
         
         desktop = QApplication.desktop().availableGeometry()
@@ -73,7 +73,6 @@ class EEGFMRIFluentApp(FluentWindow):
         # 最底部系统面板
         self.addSubInterface(self.page_log, FIF.DOCUMENT, "日志中心", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.page_setting, FIF.SETTING, "系统设置", NavigationItemPosition.BOTTOM)
-
 
 if __name__ == "__main__":
     # 高分屏支持
