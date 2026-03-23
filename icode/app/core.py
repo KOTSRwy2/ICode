@@ -67,8 +67,8 @@ class WorkerThread(QThread):
     通用后台线程，用于执行可能阻塞的主任务（如EEG处理）。
     注入自定义的 logger 将输出导回前端，不阻塞界面并提供给左下角进度条捕获。
     """
-    finished_sig = pyqtSignal(bool, str)  # 运行结果：成功与否, 辅助信息（路径或错误）
-    log_sig = pyqtSignal(str)             # 子线程上报细粒度运行日志
+    finished_sig = pyqtSignal(bool, object)  # 运行结果：成功与否, 返回对象（路径/结果对象/错误）
+    log_sig = pyqtSignal(str)                # 子线程上报细粒度运行日志
 
     def __init__(self, func, *args, **kwargs):
         super().__init__()
@@ -81,7 +81,7 @@ class WorkerThread(QThread):
             # 注入 logger
             self.kwargs['logger'] = self.emit_log
             res = self.func(*self.args, **self.kwargs)
-            self.finished_sig.emit(True, str(res) if res else "")
+            self.finished_sig.emit(True, res)
         except Exception as e:
             err = traceback.format_exc()
             self.log_sig.emit(str(e))

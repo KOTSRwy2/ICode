@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QUrl
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QMainWindow, QAction
 )
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
@@ -18,6 +19,20 @@ from .core import log_manager, WorkerThread, FMRIWorkerThread, MODULE_EEG_SOURCE
 from source_localization import run_source_localization
 from connectivity_visualization import run_connectivity_visualization
 from fmri_visualization import FMRIProcessor
+
+class VisualizationWebWindow(QMainWindow):
+    """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
+
+    def __init__(self, html_path: str, title: str = "可视化结果", parent=None):
+        super().__init__(parent)
+        self._html_path = html_path
+        self.setWindowTitle(title)
+        self.resize(1280, 860)
+
+        self.web = QWebEngineView(self)
+        self.setCentralWidget(self.web)
+        self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
+
 
 # ==========================================
 # 基础功能页面模板 (包含固定底部的进度状态栏)
@@ -132,6 +147,13 @@ class BaseFunctionPage(ScrollArea):
             parent=self.window()
         )
 
+    def show_html_in_subwindow(self, html_path: str, title: str):
+        """仅显示逻辑：将 HTML 在 QWebEngineView 子窗口中打开"""
+        if not html_path or not os.path.exists(html_path):
+            return
+        self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window())
+        self._viz_window.show()
+
 
 # ==========================================
 # EEG 源定位页面
@@ -188,17 +210,19 @@ class EEGSourcePage(BaseFunctionPage):
         self.set_running_state(True, "初始化读取EEG数据...")
         log_manager.add_log("开始运行 EEG 源定位...", self.module_name)
 
-        # 构建后台任务以防止界面假死并可接收实时进度文本
-        self.worker = WorkerThread(run_source_localization, self.bdf_path, duration_sec=duration_sec)
-        
-        # 接收到子线程的日志后更新界面展示文字，同时记入总日志
+        # 注意：EEG 源定位最终会弹出 MNE/PyVista 的 3D Qt 窗口，必须在主线程执行，
+        # 否则可能出现窗口卡死（计算完成后停在“正在弹出 3D 源定位窗口”）。
         def update_log(msg):
             self.status_label.setText(f"目前步骤: {msg}")
             log_manager.add_log(msg, self.module_name)
-            
-        self.worker.log_sig.connect(update_log)
-        self.worker.finished_sig.connect(self._on_task_finished)
-        self.worker.start()
+            QApplication.processEvents()
+
+        QApplication.processEvents()
+        try:
+            run_source_localization(self.bdf_path, logger=update_log, duration_sec=duration_sec)
+            self._on_task_finished(True, "ok")
+        except Exception as e:
+            self._on_task_finished(False, str(e))
 
     def _on_task_finished(self, success, msg):
         self.set_running_state(False, "执行完成" if success else "执行失败")
@@ -265,21 +289,30 @@ class EEGConnectivityPage(BaseFunctionPage):
         self.set_running_state(True, "初始化连接分析网络...")
         log_manager.add_log("开始运行 EEG 功能连接...", self.module_name)
 
-        self.worker = WorkerThread(run_connectivity_visualization, self.bdf_path, duration_sec=duration_sec)
-        
+        # EEG 功能连接内部会构建 MNE/PyVista 的 3D 场景对象，放在子线程可能导致异常或卡死。
+        # 这里与旧版行为保持一致：在主线程执行，同时通过 processEvents 保持进度条刷新。
         def update_log(msg):
             self.status_label.setText(f"目前步骤: {msg}")
             log_manager.add_log(msg, self.module_name)
-            
-        self.worker.log_sig.connect(update_log)
-        self.worker.finished_sig.connect(self._on_task_finished)
-        self.worker.start()
+            QApplication.processEvents()
+
+        QApplication.processEvents()
+        try:
+            out_path = run_connectivity_visualization(
+                self.bdf_path,
+                logger=update_log,
+                duration_sec=duration_sec
+            )
+            self._on_task_finished(True, out_path)
+        except Exception as e:
+            self._on_task_finished(False, str(e))
 
     def _on_task_finished(self, success, out_path):
         self.set_running_state(False, "执行完成" if success else "执行失败")
         if success:
             log_manager.add_log(f"功能连接导出成功: {out_path}", self.module_name)
             self.show_success_dialog("任务完成", f"结果已保存并尝试打开:\n{out_path}")
+            self.show_html_in_subwindow(out_path, "EEG 功能连接可视化")
         else:
             log_manager.add_log(f"分析失败: {out_path}", self.module_name)
             self.show_error_dialog("分析失败", f"发生了未知错误:\n{out_path}")
@@ -340,6 +373,7 @@ class FMRIActivationPage(BaseFunctionPage):
         if success:
             log_manager.add_log(f"fMRI 激活图生成完成: {out_path}", self.module_name)
             self.show_success_dialog("计算完毕", f"已输出 fMRI 脑区激活图到:\n{out_path}")
+            self.show_html_in_subwindow(out_path, "fMRI 激活定位可视化")
         else:
             log_manager.add_log(f"fMRI 处理失败: {out_path}", self.module_name)
             self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{out_path}")
@@ -400,6 +434,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
         if success:
             log_manager.add_log(f"fMRI 连接图生成完成: {out_path}", self.module_name)
             self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{out_path}")
+            self.show_html_in_subwindow(out_path, "fMRI 功能连接可视化")
         else:
             log_manager.add_log(f"连接计算失败: {out_path}", self.module_name)
             self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{out_path}")

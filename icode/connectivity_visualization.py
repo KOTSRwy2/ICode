@@ -324,7 +324,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         logger(f"HTML generated: {output_html}")
 
         try:
-            webbrowser.open(output_html.resolve().as_uri())
+            # webbrowser.open(output_html.resolve().as_uri())
             logger("Attempted to open HTML in default browser")
         except Exception as e:
             logger(f"Auto-open browser failed: {e}")

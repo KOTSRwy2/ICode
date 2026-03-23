@@ -112,7 +112,7 @@ class FMRIProcessor(QThread):
             f.write(html_content)
 
         if os.path.exists(html_path):
-            webbrowser.open(f'file://{os.path.abspath(html_path)}')
+            # webbrowser.open(f'file://{os.path.abspath(html_path)}')
             self.log_pyqtSignal.emit(f"fMRI激活HTML已生成并打开：{html_path}")
 
         return html_path
@@ -264,7 +264,7 @@ class FMRIProcessor(QThread):
             f.write(html_content)
 
         if os.path.exists(html_path):
-            webbrowser.open(f'file://{os.path.abspath(html_path)}')
+            # webbrowser.open(f'file://{os.path.abspath(html_path)}')
             self.log_pyqtSignal.emit(f"fMRI功能连接HTML已生成并打开：{html_path}")
 
         return html_path
