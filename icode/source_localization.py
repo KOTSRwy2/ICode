@@ -15,7 +15,11 @@ from pathlib import Path
 
 import mne
 from mne.datasets import fetch_fsaverage
-
+from PyQt5.QtWidgets import QApplication
+from mne_style import (
+    MNE_STYLE_DARK,
+    MNE_STYLE_LIGHT,
+)
 
 def _default_logger(msg: str):
     print(msg)
@@ -65,8 +69,37 @@ def _prepare_fsaverage(logger):
 
     return fs_dir, src_path, bem_path
 
+def _apply_mne_window_theme(theme: str = "auto"):
+    """
+    为当前所有 MNE 3D 窗口应用主题样式表
+    
+    参数
+    ----------
+    theme : str
+        "dark" | "light" | "auto"
+    """
+    # 确定使用哪个样式表
+    if theme == "auto":
+        # 检测系统主题
+        from qfluentwidgets import qconfig, Theme
+        is_dark = qconfig.get(qconfig.themeMode) == Theme.DARK
+        stylesheet = MNE_STYLE_DARK if is_dark else MNE_STYLE_LIGHT
+    elif theme == "dark":
+        stylesheet = MNE_STYLE_DARK
+    else:
+        stylesheet = MNE_STYLE_LIGHT
+    
+    # 应用到所有顶层窗口（包括 MNE 弹出的 3D 窗口）
+    app = QApplication.instance()
+    if app:
+        # 找到所有 MNE 相关的窗口并单独应用样式
+        for widget in app.topLevelWidgets():
+            window_title = widget.windowTitle()
+            if "Source Localization" in window_title or "Brain" in window_title:
+                widget.setStyleSheet(stylesheet)
 
-def run_source_localization(bdf_path, logger=None, duration_sec=10):
+
+def run_source_localization(bdf_path, logger=None, duration_sec=10, plot_theme="auto"):
     """
     运行模板版源定位可视化
 
@@ -240,6 +273,23 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10):
     # 13. 弹出 3D 可视化窗口
     # -------------------------
     logger("正在弹出 3D 源定位窗口...")
+
+    if plot_theme == "dark":
+        bg_color = "#161618"
+        fg_color = "white"
+        cortex_style = "low_contrast"  # 暗色主题用低对比度皮层
+        theme_name = "dark"
+    elif plot_theme == "light":
+        bg_color = "#F5F7FA"
+        fg_color = "black"
+        cortex_style = "classic"  # 亮色主题用经典皮层
+        theme_name = "light"
+    else: 
+        bg_color = "black"
+        fg_color = None  # 自动根据背景选择
+        cortex_style = "classic"
+        theme_name = "auto"
+
     stc.plot(
         subject=subject,
         subjects_dir=str(subjects_dir),
@@ -248,9 +298,16 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10):
         views="lateral",
         size=(1000, 700),
         title="Template Source Localization",
-        time_viewer=True
+        time_viewer=True,
+        background=bg_color,
+        foreground=fg_color,
+        brain_kwargs={
+        "theme": "dark",
+        "silhouette": False,
+        "interaction": "trackball",
+        },
     )
-
+    _apply_mne_window_theme(plot_theme)
     logger("模板源定位完成。")
     logger("========== 模板源定位结束 ==========")
 

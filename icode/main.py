@@ -27,7 +27,6 @@ from app.pages import (
     LogReportPage,
     SettingsPage
 )
-
 class EEGFMRIFluentApp(FluentWindow):
     def __init__(self):
         super().__init__()

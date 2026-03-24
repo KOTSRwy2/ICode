@@ -10,8 +10,8 @@ from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
     ComboBoxSettingCard, OptionsConfigItem, OptionsValidator,
     qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
-    TextEdit, ComboBox, LineEdit, IndeterminateProgressBar, CardWidget,
-    SubtitleLabel, BodyLabel, FluentStyleSheet
+    TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
+    SubtitleLabel, BodyLabel, FluentStyleSheet, isDarkTheme
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -169,18 +169,18 @@ class EEGSourcePage(BaseFunctionPage):
         self.path_edit = LineEdit(self.view)
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText("选择一个 .bdf 脑电文件")
-        
+
         self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
         self.btn_select.clicked.connect(self._select_file)
-        
+
         file_layout.addWidget(self.path_edit)
         file_layout.addWidget(self.btn_select)
-        
+
         dur_layout = QHBoxLayout()
         dur_label = BodyLabel("截取时长：", self.view)
         self.duration_box = ComboBox(self.view)
         self.duration_box.addItems(["5 秒", "10 秒", "30 秒", "60 秒", "全部"])
-        
+
         dur_layout.addWidget(dur_label)
         dur_layout.addWidget(self.duration_box)
         dur_layout.addStretch(1)
@@ -219,7 +219,13 @@ class EEGSourcePage(BaseFunctionPage):
 
         QApplication.processEvents()
         try:
-            run_source_localization(self.bdf_path, logger=update_log, duration_sec=duration_sec)
+            plot_theme = "auto"  # 不再强制 dark，让系统自动检测
+            run_source_localization(
+                self.bdf_path,
+                logger=update_log,
+                duration_sec=duration_sec,
+                plot_theme=plot_theme
+            )
             self._on_task_finished(True, "ok")
         except Exception as e:
             self._on_task_finished(False, str(e))
