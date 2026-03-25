@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import webbrowser
-
 import mne
 import numpy as np
 from mne.datasets import fetch_fsaverage

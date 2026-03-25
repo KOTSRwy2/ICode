@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
-from PyQt5.QtCore import Qt, QSize, QUrl
+from PyQt5.QtCore import Qt, QSize, QUrl, QPoint, QRect
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QMainWindow, QAction
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QMainWindow, QAction, QSizePolicy, QFrame
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
@@ -11,7 +11,7 @@ from qfluentwidgets import (
     ComboBoxSettingCard, OptionsConfigItem, OptionsValidator,
     qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
     TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
-    SubtitleLabel, BodyLabel, FluentStyleSheet, isDarkTheme
+    SubtitleLabel, BodyLabel, FluentStyleSheet, isDarkTheme, ToolButton, HeaderCardWidget
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -21,6 +21,85 @@ from connectivity_visualization import run_connectivity_visualization
 from fmri_activation import FMRIActivationThread
 from fmri_connectivity import FMRIConnectivityThread
 from CustomWebEnginePage import CustomWebEngineView
+
+
+class FlowLayout(QHBoxLayout):
+    def __init__(self, parent=None, spacing=-1):
+        super().__init__(parent)
+        self._item_list = []
+        self.setSpacing(spacing)
+
+    def __del__(self):
+        while self._item_list:
+            self._item_list.pop()
+
+    def addItem(self, item):
+        self._item_list.append(item)
+
+    def count(self):
+        return len(self._item_list)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientations(Qt.Orientation(0))
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(width, apply_geometry=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect.width(), apply_geometry=True)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._item_list:
+            size = size.expandedTo(item.minimumSize())
+        size += QSize(2 * self.contentsMargins().top(), 2 * self.contentsMargins().top())
+        return size
+
+    def _do_layout(self, width, apply_geometry=True):
+        x = self.contentsMargins().left()
+        y = self.contentsMargins().top()
+        line_height = 0
+
+        for item in self._item_list:
+            wid = item.widget()
+            space_x = self.spacing()
+            space_y = self.spacing()
+            if wid is not None:
+                space_x = wid.style().layoutSpacing(QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Horizontal)
+                space_y = wid.style().layoutSpacing(QSizePolicy.PushButton, QSizePolicy.PushButton, Qt.Vertical)
+
+            next_x = x + item.sizeHint().width() + space_x
+            if next_x - space_x > width and line_height > 0:
+                x = self.contentsMargins().left()
+                y = y + line_height + space_y
+                next_x = x + item.sizeHint().width() + space_x
+                line_height = 0
+
+            if apply_geometry:
+                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+
+        return y + line_height + self.contentsMargins().bottom()
+
 
 
 class VisualizationWebWindow(QMainWindow):
@@ -387,6 +466,99 @@ class EEGConnectivityPage(BaseFunctionPage):
 
 
 # ==========================================
+# fMRI 结果展示卡片
+# ==========================================
+class PlotlyCard(QFrame):
+    """一个专门用于显示 Plotly 图表的卡片式控件。"""
+    def __init__(self, title, subtitle, parent=None):
+        super().__init__(parent=parent)
+        self.fig = None
+        self.title = title
+        self.setObjectName('PlotlyCard')
+        FluentStyleSheet.CARD.apply(self) # 应用卡片样式
+
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(16, 12, 16, 16)
+        self.main_layout.setSpacing(10)
+
+        # --- 标题和按钮 --- #
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0,0,0,0)
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(0)
+        self.title_label = SubtitleLabel(title, self)
+        self.subtitle_label = BodyLabel(subtitle, self)
+        self.subtitle_label.setStyleSheet("color: gray;")
+        title_layout.addWidget(self.title_label)
+        title_layout.addWidget(self.subtitle_label)
+        header_layout.addLayout(title_layout)
+        header_layout.addStretch(1)
+        self.save_btn = ToolButton(FIF.SAVE, self)
+        self.save_btn.setToolTip("保存图表为PNG文件")
+        self.save_btn.clicked.connect(self._save_figure)
+        header_layout.addWidget(self.save_btn)
+        self.main_layout.addLayout(header_layout)
+
+        # --- 可折叠的图表和描述 --- #
+        self.plot_view = CustomWebEngineView(self)
+        self.plot_view.setMinimumHeight(400)
+        self.desc_label = BodyLabel("详细描述...")
+        self.desc_label.setWordWrap(True)
+        self.desc_label.setVisible(False) # 默认隐藏
+
+        self.main_layout.addWidget(self.plot_view)
+        self.main_layout.addWidget(self.desc_label)
+        
+        self.setCursor(Qt.PointingHandCursor)
+
+    def mousePressEvent(self, event):
+        # 点击卡片时，切换详细描述的可见性
+        # We check if the click was on the save button
+        if self.save_btn.geometry().contains(event.pos()):
+             super().mousePressEvent(event)
+             return
+        self.desc_label.setVisible(not self.desc_label.isVisible())
+        super().mousePressEvent(event)
+
+    def set_figure(self, fig, description: str):
+        self.fig = fig
+        self.desc_label.setText(description)
+
+        # --- 配色和主题 --- #
+        # 根据PyQt Fluent Widgets的深/浅色主题，调整Plotly的模板
+        template = 'plotly_dark' if isDarkTheme() else 'plotly_white'
+        self.fig.update_layout(
+            template=template,
+            paper_bgcolor='rgba(0,0,0,0)', # 使图表背景透明以融入卡片
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e0e0e0' if isDarkTheme() else '#202020') # 适配字体颜色
+        )
+
+        # 将图表转为HTML并加载
+        html = self.fig.to_html(include_plotlyjs='cdn')
+        self.plot_view.setHtml(html)
+
+    def _save_figure(self):
+        if not self.fig:
+            InfoBar.warning("提示", "图表尚未生成。", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return
+
+        # 弹出文件保存对话框
+        default_name = f"{self.title.replace(' ', '_')}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "保存图表", default_name, "PNG Image (*.png)"
+        )
+
+        if path:
+            try:
+                # 使用 kaleido 保存为静态图片
+                self.fig.write_image(path, width=1200, height=800, scale=2)
+                InfoBar.success("保存成功", f"图表已保存至: {path}", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            except Exception as e:
+                InfoBar.error("保存失败", f"无法保存图表: {e}", parent=self, position=InfoBarPosition.TOP_RIGHT)
+
+
+# ==========================================
 # fMRI 激活定位页面
 # ==========================================
 class FMRIActivationPage(BaseFunctionPage):
@@ -413,6 +585,13 @@ class FMRIActivationPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
 
+        # --- 结果展示区 --- #
+        self.results_container = QWidget(self.view)
+        self.results_layout = FlowLayout(self.results_container, spacing=16)
+        self.results_container.setLayout(self.results_layout)
+        self.content_layout.addWidget(self.results_container)
+        self.results_container.hide()
+
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
         if file_path:
@@ -438,13 +617,55 @@ class FMRIActivationPage(BaseFunctionPage):
 
     def _on_task_finished(self, success, out_path):
         self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
-            log_manager.add_log(f"fMRI 激活图生成完成: {out_path}", self.module_name)
-            self.show_success_dialog("计算完毕", f"已输出 fMRI 脑区激活图到:\n{out_path}")
-            self.show_html_in_subwindow(out_path, "fMRI 激活定位可视化")
-        else:
+
+        # 清空旧的结果
+        while self.results_layout.count():
+            child = self.results_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if not success:
             log_manager.add_log(f"fMRI 处理失败: {out_path}", self.module_name)
             self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{out_path}")
+            self.results_container.hide()
+            return
+
+        log_manager.add_log(f"fMRI 激活图生成完成", self.module_name)
+        InfoBar.success("分析完成", "fMRI 脑区激活图表已生成在下方。", parent=self)
+
+        figures = self.worker.processor.plotly_figures
+        if not figures:
+            self.show_error_dialog("没有结果", "后台任务未生成任何图表。")
+            self.results_container.hide()
+            return
+
+        # 定义图表的标题、副标题和详细描述
+        plot_info = {
+            "ortho_activation": {
+                "title": "三正交切片激活图",
+                "subtitle": "在标准脑模板上显示最强激活点",
+                "description": "此图从矢状面、冠状面和轴状面三个互相垂直的视角，展示了fMRI信号显著激活的区域。背景是MNI152标准脑模板，彩色部分是激活信号强度图。程序会自动定位到信号最强的激活峰值点进行切片，帮助快速定位核心激活区。"
+            },
+            "activation_intensity_hist": {
+                "title": "激活强度分布直方图",
+                "subtitle": "显示所有激活体素的信号强度分布",
+                "description": "此直方图统计了所有被识别为‘激活’的脑区体素（voxel）的信号强度值，并展示了它们的分布情况。这有助于了解激活信号的整体强度和离散程度。图中的红色虚线标示了95%分位点，通常被用作一个较高的激活阈值参考。"
+            },
+            "threshold_voxel_curve": {
+                "title": "阈值-激活体素数曲线",
+                "subtitle": "不同阈值下，激活区域的体素数量",
+                "description": "此曲线图展示了当统计阈值从宽松到严格变化时，被判定为‘激活’的体素数量是如何减少的。这对于选择一个合适的统计阈值至关重要：过于宽松的阈值可能导致假阳性，而过于严格的阈值可能遗漏真实的激活。曲线的拐点通常是选择阈值的参考区域。"
+            }
+        }
+
+        for key, fig in figures.items():
+            if key in plot_info:
+                info = plot_info[key]
+                card = PlotlyCard(info["title"], info["subtitle"], self.results_container)
+                card.set_figure(fig, info["description"])
+                self.results_layout.addWidget(card)
+
+        self.results_container.show()
 
 
 # ==========================================
