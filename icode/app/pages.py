@@ -43,7 +43,7 @@ class BaseFunctionPage(ScrollArea):
         super().__init__(parent=parent)
         self.module_name = module_name
         self.setObjectName(title.replace(" ", "_"))
-        
+
         # 保留圆角与无边框，不覆盖 Fluent 的主题背景绘制
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
@@ -51,34 +51,34 @@ class BaseFunctionPage(ScrollArea):
         # 移除强制样式覆盖，改用 FluentWidgets 推荐的透明化配置
         self.viewport().setObjectName("FunctionPageViewport")
         self.viewport().setStyleSheet("background: transparent; border: none;")
-        
+
         self.view = QWidget(self)
         self.view.setObjectName("FunctionPageView")
         self.view.setStyleSheet("background: transparent;")
-        
+
         # 允许通过父窗口（FluentWindow）传递主题背景
         self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
-        
+
         # 主布局
         self.main_layout = QVBoxLayout(self.view)
         self.main_layout.setContentsMargins(36, 36, 36, 36)
         self.main_layout.setSpacing(24)
-        
+
         # 建立标题区
         self.title_label = SubtitleLabel(title, self.view)
         self.desc_label = BodyLabel(description, self.view)
         # 使用 QFluentWidgets 默认配色，确保在深浅主题下均有良好的可读性
-        
+
         self.main_layout.addWidget(self.title_label)
         self.main_layout.addWidget(self.desc_label)
-        
+
         # 内容填充区 (子类在这里添加自己的输入和设置控件)
         self.content_layout = QVBoxLayout()
         self.content_layout.setSpacing(16)
         self.main_layout.addLayout(self.content_layout)
-        
+
         self.main_layout.addStretch(1)
-        
+
         # 底部状态展示区 (固定在页面下方)
         self._build_status_bar()
         self.main_layout.addWidget(self.status_container)
@@ -97,12 +97,12 @@ class BaseFunctionPage(ScrollArea):
         self.status_label = BodyLabel("当前状态...", self.status_container)
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.status_label.setStyleSheet("font-size: 13px;")
-        
+
         # 左右循环播放的进度条
         self.progress_bar = IndeterminateProgressBar(self.status_container,0.4)
         self.status_layout.addWidget(self.status_label)
         self.status_layout.addWidget(self.progress_bar)
-        
+
         # 默认隐藏整个组件，运行时才展现
         self.status_container.setVisible(False)
 
@@ -176,7 +176,10 @@ class EEGSourcePage(BaseFunctionPage):
         file_layout.addWidget(self.path_edit)
         file_layout.addWidget(self.btn_select)
 
+        parameters_layout = QHBoxLayout()
+
         dur_layout = QHBoxLayout()
+        band_layout = QHBoxLayout()
         dur_label = BodyLabel("截取时长：", self.view)
         self.duration_box = ComboBox(self.view)
         self.duration_box.addItems(["5 秒", "10 秒", "30 秒", "60 秒", "全部"])
@@ -184,12 +187,22 @@ class EEGSourcePage(BaseFunctionPage):
         dur_layout.addWidget(dur_label)
         dur_layout.addWidget(self.duration_box)
         dur_layout.addStretch(1)
+        parameters_layout.addLayout(dur_layout)
+
+        band_label = BodyLabel("分析频道：", self.view)
+        self.band_box = ComboBox(self.view)
+        self.band_box.addItems(["全频道", "α 频段", "β 频段", "γ 频段"])
+
+        band_layout.addWidget(band_label)
+        band_layout.addWidget(self.band_box)
+        band_layout.addStretch(1)
+        parameters_layout.addLayout(band_layout)
 
         self.btn_run = PushButton("执行 EEG 源定位", self.view, FIF.PLAY)
         self.btn_run.clicked.connect(self._run_task)
 
         self.content_layout.addLayout(file_layout)
-        self.content_layout.addLayout(dur_layout)
+        self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
 
     def _select_file(self):
@@ -199,19 +212,32 @@ class EEGSourcePage(BaseFunctionPage):
             self.path_edit.setText(file_path)
             log_manager.add_log(f"已选择 BDF 文件: {file_path}", self.module_name)
 
+    def get_selected_duration(self):
+        text = self.duration_box.currentText()
+        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
+        return mapping[text]
+
+    def get_selected_band(self):
+        text = self.band_box.currentText()
+        mapping = {
+            "全频道": "full",
+            "α 频段": "alpha",
+            "β 频段": "beta",
+            "γ 频段": "gamma",
+        }
+        return mapping[text]
+
     def _run_task(self):
         if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
             return
 
-        text = self.duration_box.currentText()
-        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
-        duration_sec = mapping[text]
+        duration_sec = self.get_selected_duration()
+        analysis_band = self.get_selected_band()
 
         self.set_running_state(True, "初始化读取EEG数据...")
         log_manager.add_log("开始运行 EEG 源定位...", self.module_name)
+        log_manager.add_log(f"当前选择的分析频道：{self.band_box.currentText()}")
 
-        # 注意：EEG 源定位最终会弹出 MNE/PyVista 的 3D Qt 窗口，必须在主线程执行，
-        # 否则可能出现窗口卡死（计算完成后停在“正在弹出 3D 源定位窗口”）。
         def update_log(msg):
             self.status_label.setText(f"目前步骤: {msg}")
             log_manager.add_log(msg, self.module_name)
@@ -219,11 +245,12 @@ class EEGSourcePage(BaseFunctionPage):
 
         QApplication.processEvents()
         try:
-            plot_theme = "auto"  # 不再强制 dark，让系统自动检测
+            plot_theme = "auto"
             run_source_localization(
                 self.bdf_path,
                 logger=update_log,
                 duration_sec=duration_sec,
+                analysis_band=analysis_band,
                 plot_theme=plot_theme
             )
             self._on_task_finished(True, "ok")
@@ -254,28 +281,56 @@ class EEGConnectivityPage(BaseFunctionPage):
         self.path_edit = LineEdit(self.view)
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText("选择一个 .bdf 脑电文件")
-        
+
         self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
         self.btn_select.clicked.connect(self._select_file)
-        
+
         file_layout.addWidget(self.path_edit)
         file_layout.addWidget(self.btn_select)
-        
+
+        parameters_layout = QHBoxLayout()
+
         dur_layout = QHBoxLayout()
         dur_label = BodyLabel("截取时长：", self.view)
         self.duration_box = ComboBox(self.view)
         self.duration_box.addItems(["5 秒", "10 秒", "30 秒", "60 秒", "全部"])
-        
+
         dur_layout.addWidget(dur_label)
         dur_layout.addWidget(self.duration_box)
         dur_layout.addStretch(1)
+        parameters_layout.addLayout(dur_layout)
+
+        band_layout = QHBoxLayout()
+        band_label = BodyLabel("分析频道：", self.view)
+        self.band_box = ComboBox(self.view)
+        self.band_box.addItems(["全频道", "α 频段", "β 频段", "γ 频段"])
+
+        band_layout.addWidget(band_label)
+        band_layout.addWidget(self.band_box)
+        band_layout.addStretch(1)
+        parameters_layout.addLayout(band_layout)
 
         self.btn_run = PushButton("执行功能连接分析", self.view, FIF.PLAY)
         self.btn_run.clicked.connect(self._run_task)
 
         self.content_layout.addLayout(file_layout)
-        self.content_layout.addLayout(dur_layout)
+        self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
+
+    def get_selected_duration(self):
+        text = self.duration_box.currentText()
+        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
+        return mapping[text]
+
+    def get_selected_band(self):
+        text = self.band_box.currentText()
+        mapping = {
+            "全频道": "full",
+            "α 频段": "alpha",
+            "β 频段": "beta",
+            "γ 频段": "gamma",
+        }
+        return mapping[text]
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
@@ -338,10 +393,10 @@ class FMRIActivationPage(BaseFunctionPage):
         self.path_edit = LineEdit(self.view)
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText("选择一个 .nii / .nii.gz 脑影像文件")
-        
+
         self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
         self.btn_select.clicked.connect(self._select_file)
-        
+
         file_layout.addWidget(self.path_edit)
         file_layout.addWidget(self.btn_select)
 
@@ -399,10 +454,10 @@ class FMRIConnectivityPage(BaseFunctionPage):
         self.path_edit = LineEdit(self.view)
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText("选择一个 .nii / .nii.gz 脑影像文件")
-        
+
         self.btn_select = PushButton("浏览文件", self.view, FIF.FOLDER)
         self.btn_select.clicked.connect(self._select_file)
-        
+
         file_layout.addWidget(self.path_edit)
         file_layout.addWidget(self.btn_select)
 
@@ -459,7 +514,7 @@ class LogReportPage(ScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.viewport().setStyleSheet("background: transparent; border: none;")
         self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
-        
+
         self.view = QWidget(self)
         self.view.setObjectName("LogReportPageView")
         self.view.setStyleSheet("background: transparent;")
@@ -469,33 +524,33 @@ class LogReportPage(ScrollArea):
         self.title_label = SubtitleLabel("系统运行日志", self.view)
         self.main_layout.addWidget(self.title_label)
         self.main_layout.addSpacing(16)
-        
+
         # 过滤器与操作区
         filter_layout = QHBoxLayout()
         filter_layout.addWidget(BodyLabel("日志模块源:", self.view))
-        
+
         self.combo_filter = ComboBox(self.view)
         self.combo_filter.addItems(["全部", MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM])
         self.combo_filter.currentIndexChanged.connect(self._update_log_display)
         filter_layout.addWidget(self.combo_filter)
-        
+
         self.btn_export = PushButton("导出日志报表", self.view, FIF.DOWNLOAD)
         self.btn_export.clicked.connect(self._export_log)
         filter_layout.addWidget(self.btn_export)
-        
+
         self.btn_clear = PushButton("清理屏幕", self.view, FIF.DELETE)
         self.btn_clear.clicked.connect(self._clear_log)
         filter_layout.addWidget(self.btn_clear)
-        
+
         filter_layout.addStretch(1)
         self.main_layout.addLayout(filter_layout)
-        
+
         # 多行只读本文显示区
         self.text_editor = TextEdit(self.view)
         self.text_editor.setReadOnly(True)
         self.text_editor.setPlaceholderText("暂无日志报告...")
         self.main_layout.addWidget(self.text_editor, stretch=1)
-        
+
         self.setWidget(self.view)
 
         # 绑定核心派发器刷新UI
@@ -509,14 +564,14 @@ class LogReportPage(ScrollArea):
 
     def _clear_log(self):
         log_manager.clear()
-        
+
     def _export_log(self):
         mod = self.combo_filter.currentText()
         lines = log_manager.get_logs(mod)
         if not lines:
             InfoBar.warning("导出提示", "当前过滤器下没有可导出的日志。", parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
             return
-            
+
         path, _ = QFileDialog.getSaveFileName(self, "导出运行记录", f"system_logs_{mod}.txt", "Text Files (*.txt)")
         if path:
             with open(path, "w", encoding='utf-8') as f:
@@ -542,13 +597,13 @@ class SettingsPage(ScrollArea):
         self.view.setStyleSheet("background: transparent;")
         self.expand_layout = ExpandLayout(self.view)
         self.expand_layout.setContentsMargins(36, 36, 36, 36)
-        
+
         self._init_ui()
 
     def _init_ui(self):
         title = SubtitleLabel("系统设置", self.view)
         self.expand_layout.addWidget(title)
-        
+
         # 使用分组归类管理项
         self.personal_group = SettingCardGroup("界面与主题", self.view)
 
@@ -573,7 +628,7 @@ class SettingsPage(ScrollArea):
             content="自定义状态与高亮的指向色",
             parent=self.personal_group
         )
-        
+
         self.personal_group.addSettingCard(self.theme_card)
         self.personal_group.addSettingCard(self.color_card)
 

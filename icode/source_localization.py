@@ -98,8 +98,23 @@ def _apply_mne_window_theme(theme: str = "auto"):
             if "Source Localization" in window_title or "Brain" in window_title:
                 widget.setStyleSheet(stylesheet)
 
+def _get_band_range(analysis_band: str):
+    """
+    根据用户选择返回滤波范围
+    """
+    band_map = {
+        "full": (1.0, 40.0, "全频道"),
+        "alpha": (8.0, 13.0, "α频段"),
+        "beta": (13.0, 30.0, "β频段"),
+        "gamma": (30.0, 40.0, "γ频段"),
+    }
 
-def run_source_localization(bdf_path, logger=None, duration_sec=10, plot_theme="auto"):
+    if analysis_band not in band_map:
+        raise ValueError(f"不支持的 analysis_band：{analysis_band}")
+
+    return band_map[analysis_band]
+
+def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_band="full",plot_theme="auto"):
     """
     运行模板版源定位可视化
 
@@ -202,9 +217,11 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, plot_theme="
     # -------------------------
     # 7. 预处理
     # -------------------------
-    logger("正在进行预处理：平均参考 + 1-40 Hz 滤波...")
+    l_freq, h_freq, band_label = _get_band_range(analysis_band)
+
+    logger(f"正在进行预处理：平均参考 + {band_label} 滤波（{l_freq}-{h_freq} Hz）...")
     raw.set_eeg_reference(projection=True)
-    raw.filter(1.0, 40.0, picks="eeg")
+    raw.filter(l_freq, h_freq, picks="eeg")
 
     # -------------------------
     # 8. 加载模板模型
@@ -297,7 +314,7 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, plot_theme="
         hemi="both",
         views="lateral",
         size=(1000, 700),
-        title="Template Source Localization",
+        title=f"Template Source Localization - {band_label}",
         time_viewer=True,
         background=bg_color,
         foreground=fg_color,
@@ -308,6 +325,7 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, plot_theme="
         },
     )
     _apply_mne_window_theme(plot_theme)
+
     logger("模板源定位完成。")
     logger("========== 模板源定位结束 ==========")
 

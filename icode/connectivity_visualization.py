@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 """
 connectivity_visualization.py
-Feature 2: template-based EEG functional connectivity visualization.
+功能2：基于模板的 EEG 功能连接可视化
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from mne.datasets import fetch_fsaverage
 
 
 def _is_vtkjs_404_page(html_path: Path) -> bool:
-    """Detect whether exported HTML is actually a VTK.js 404 template page."""
+    """检测导出的 HTML 是否实际上是 VTK.js 的 404 模板页"""
     try:
         head = html_path.read_text(encoding="utf-8", errors="ignore")[:8000]
     except Exception:
@@ -35,23 +35,26 @@ def _default_logger(msg: str) -> None:
 
 
 def _get_project_root() -> Path:
+    """返回当前项目根目录"""
     return Path(__file__).resolve().parent
 
 
 def _get_assets_dir() -> Path:
+    """返回 assets 文件夹路径，不存在则自动创建"""
     assets_dir = _get_project_root() / "assets"
     assets_dir.mkdir(exist_ok=True)
     return assets_dir
 
 
 def _get_outputs_dir() -> Path:
-    outputs_dir = _get_project_root() / "outputs"/ "EEG"
+    """返回输出目录 outputs/EEG，不存在则自动创建"""
+    outputs_dir = _get_project_root() / "outputs" / "EEG"
     outputs_dir.mkdir(exist_ok=True)
     return outputs_dir
 
 
 def _prepare_fsaverage(logger) -> tuple[Path, Path, Path]:
-    """Prepare fsaverage template under ./assets."""
+    """准备 ./assets 下的 fsaverage 模板"""
     assets_dir = _get_assets_dir()
     fs_dir = assets_dir / "fsaverage"
 
@@ -59,79 +62,96 @@ def _prepare_fsaverage(logger) -> tuple[Path, Path, Path]:
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
 
     if not fs_dir.exists() or not src_path.exists() or not bem_path.exists():
-        logger("Local fsaverage template is incomplete. Downloading to assets ...")
-        logger(f"Download directory: {assets_dir}")
+        logger("未检测到完整的本地 fsaverage 模板，正在下载到 assets 文件夹...")
+        logger(f"下载目录：{assets_dir}")
         fs_dir = Path(fetch_fsaverage(subjects_dir=assets_dir, verbose=True))
-        logger(f"fsaverage ready: {fs_dir}")
+        logger(f"fsaverage 模板已准备完成：{fs_dir}")
     else:
-        logger(f"Using local fsaverage: {fs_dir}")
+        logger(f"检测到本地 fsaverage 模板：{fs_dir}")
 
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
 
     if not src_path.exists():
-        raise FileNotFoundError(f"Missing source space file: {src_path}")
+        raise FileNotFoundError(f"缺少源空间文件：{src_path}")
     if not bem_path.exists():
-        raise FileNotFoundError(f"Missing BEM solution file: {bem_path}")
+        raise FileNotFoundError(f"缺少 BEM 解文件：{bem_path}")
 
     return fs_dir, src_path, bem_path
 
 
-def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
-    """Run template-based EEG connectivity visualization and export interactive HTML."""
+def _get_band_range(analysis_band: str):
+    """
+    根据用户选择返回滤波范围
+    """
+    band_map = {
+        "full": (1.0, 40.0, "全频道"),
+        "alpha": (8.0, 13.0, "α频段"),
+        "beta": (13.0, 30.0, "β频段"),
+        "gamma": (30.0, 40.0, "γ频段"),
+    }
+
+    if analysis_band not in band_map:
+        raise ValueError(f"不支持的 analysis_band: {analysis_band}")
+
+    return band_map[analysis_band]
+
+
+def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
+    """运行基于模板的 EEG 功能连接可视化，并导出交互式 HTML"""
     if logger is None:
         logger = _default_logger
 
-    logger("========== Connectivity Visualization Start ==========")
+    logger("========== 功能连接可视化开始 ==========")
 
     if not os.path.exists(bdf_path):
-        raise FileNotFoundError(f"BDF file does not exist: {bdf_path}")
+        raise FileNotFoundError(f"BDF 文件不存在：{bdf_path}")
 
-    logger(f"BDF file: {bdf_path}")
+    logger(f"BDF 文件：{bdf_path}")
 
-    # 1) Prepare fsaverage
+    # 1) 准备 fsaverage 模板
     fs_dir, src_path, bem_path = _prepare_fsaverage(logger)
     subject = "fsaverage"
     subjects_dir = fs_dir.parent
     trans = "fsaverage"
 
-    logger(f"subjects_dir: {subjects_dir}")
-    logger(f"src: {src_path}")
-    logger(f"bem: {bem_path}")
+    logger(f"subjects_dir：{subjects_dir}")
+    logger(f"src 文件：{src_path}")
+    logger(f"bem 文件：{bem_path}")
 
-    # 2) 3D backend
-    logger("Setting 3D backend: pyvistaqt")
+    # 2) 设置 3D 后端
+    logger("正在设置 3D 后端：pyvistaqt")
     mne.viz.set_3d_backend("pyvistaqt")
 
-    # 3) Read BDF
-    logger("Reading BDF (lazy load) ...")
+    # 3) 读取 BDF 文件
+    logger("正在读取 BDF 数据（延迟加载）...")
     raw = mne.io.read_raw_bdf(bdf_path, preload=False)
 
-    logger(f"Channel count: {len(raw.ch_names)}")
-    logger(f"First channels: {raw.ch_names[:10]}")
+    logger(f"通道总数：{len(raw.ch_names)}")
+    logger(f"前几个通道名：{raw.ch_names[:10]}")
 
-    # 4) Crop duration
+    # 4) 按用户选择裁剪分析时长
     total_duration = float(raw.times[-1]) if raw.n_times > 1 else 0.0
     if duration_sec is None:
         actual_duration = total_duration
-        logger("Duration selected: full length")
+        logger("用户选择：处理全部时长")
     else:
         actual_duration = min(float(duration_sec), total_duration)
-        logger(f"Duration selected: first {duration_sec} s")
+        logger(f"用户选择：处理前 {duration_sec} 秒")
         if total_duration < float(duration_sec):
-            logger(f"Data only has {total_duration:.2f} s; using full length")
+            logger(f"原始数据总时长只有 {total_duration:.2f} 秒，因此将处理全部数据")
 
     if actual_duration > 0:
         raw.crop(tmin=0.0, tmax=actual_duration)
 
-    logger(f"Actual duration used: {raw.times[-1]:.2f} s")
+    logger(f"实际参与处理的数据时长：{raw.times[-1]:.2f} 秒")
 
-    logger("Loading selected segment into memory ...")
+    logger("正在将所选时间段加载到内存...")
     raw.load_data()
-    logger("Data segment loaded")
+    logger("数据加载完成")
 
-    # 5) Non-EEG channel typing
-    logger("Typing non-EEG channels if present ...")
+    # 5) 处理非 EEG 通道类型
+    logger("正在识别并设置非 EEG 通道类型...")
     ch_type_map = {}
     for ch in raw.ch_names:
         ch_upper = ch.upper()
@@ -142,25 +162,27 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
 
     if ch_type_map:
         raw.set_channel_types(ch_type_map)
-        logger(f"Set channel types: {ch_type_map}")
+        logger(f"已设置通道类型：{ch_type_map}")
     else:
-        logger("No ECG/EMG1/EMG2 channels found; skip typing")
+        logger("未发现 ECG / EMG1 / EMG2 通道，跳过设置")
 
-    # 6) Montage + preprocess
-    logger("Applying standard_1020 montage ...")
+    # 6) 设置电极模板并预处理
+    logger("正在设置 standard_1020 电极模板...")
     raw.set_montage("standard_1020", on_missing="ignore")
 
-    logger("Preprocessing: 1-30 Hz filter + average reference")
-    raw.filter(1.0, 30.0, picks="eeg")
+    l_freq, h_freq, band_label = _get_band_range(analysis_band)
+
+    logger(f"正在进行预处理：{band_label} 滤波（{l_freq}-{h_freq} Hz）+ 平均参考")
+    raw.filter(l_freq, h_freq, picks="eeg")
     raw.set_eeg_reference("average", projection=True)
     raw.apply_proj()
 
-    # 7) Source model
-    logger("Loading source space and BEM ...")
+    # 7) 构建源模型
+    logger("正在加载源空间和 BEM 模型...")
     src = mne.read_source_spaces(src_path)
     bem = mne.read_bem_solution(bem_path)
 
-    logger("Building forward solution ...")
+    logger("正在构建 forward solution...")
     fwd = mne.make_forward_solution(
         raw.info,
         trans=trans,
@@ -172,10 +194,10 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         n_jobs=1,
     )
 
-    logger("Computing covariance ...")
+    logger("正在计算协方差矩阵...")
     cov = mne.compute_raw_covariance(raw, picks="eeg", method="empirical")
 
-    logger("Building inverse operator ...")
+    logger("正在构建 inverse operator...")
     inv = mne.minimum_norm.make_inverse_operator(
         raw.info,
         fwd,
@@ -184,8 +206,8 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         depth=0.8,
     )
 
-    # 8) Inverse solution on selected segment
-    logger("Applying inverse solution ...")
+    # 8) 对当前时间段做逆解
+    logger("正在进行逆向求解...")
     stc = mne.minimum_norm.apply_inverse_raw(
         raw,
         inv,
@@ -196,19 +218,19 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         pick_ori=None,
     )
 
-    # 9) Labels and connectivity
-    logger("Loading cortical labels (aparc) ...")
+    # 9) 提取脑区并计算连接矩阵
+    logger("正在加载皮层脑区标签（aparc）...")
     labels = mne.read_labels_from_annot(
         subject=subject,
         parc="aparc",
         subjects_dir=str(subjects_dir),
     )
-    logger(f"Label count (raw): {len(labels)}")
+    logger(f"原始脑区标签数量：{len(labels)}")
 
     labels = [lab for lab in labels if not lab.name.startswith("unknown")]
-    logger(f"Label count (filtered): {len(labels)}")
+    logger(f"过滤 unknown 后的脑区标签数量：{len(labels)}")
 
-    logger("Extracting label time courses ...")
+    logger("正在提取脑区时间序列...")
     label_ts = mne.extract_label_time_course(
         stc,
         labels,
@@ -217,11 +239,11 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         allow_empty="ignore",
     )
 
-    logger("Computing connectivity matrix (Pearson correlation) ...")
+    logger("正在计算功能连接矩阵（皮尔逊相关）...")
     connectivity_matrix = np.corrcoef(label_ts)
 
-    # 10) Build 3D scene
-    logger("Creating 3D brain scene ...")
+    # 10) 创建 3D 脑场景
+    logger("正在创建 3D 脑场景...")
     brain = mne.viz.Brain(
         subject=subject,
         subjects_dir=str(subjects_dir),
@@ -232,7 +254,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         background="black",
     )
 
-    logger("Selecting strongest connections ...")
+    logger("正在筛选最强连接...")
     n_lines = 100
     upper_idx = np.triu_indices(len(labels), k=1)
     all_weights = connectivity_matrix[upper_idx]
@@ -242,9 +264,9 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
     else:
         threshold = 0.5
 
-    logger(f"Connection threshold: {threshold:.4f}")
+    logger(f"连接阈值：{threshold:.4f}")
 
-    logger("Preparing node coordinates and labels ...")
+    logger("正在准备节点坐标和标签名称...")
     degrees = np.sum(connectivity_matrix >= threshold, axis=1) - 1
     max_deg = np.max(degrees) if np.max(degrees) > 0 else 1
 
@@ -261,7 +283,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
 
     coords_arr = np.array(label_coords)
 
-    logger("Drawing nodes ...")
+    logger("正在绘制节点...")
     for i, v_idx in enumerate(label_vertices):
         node_size = 0.6 + (degrees[i] / max_deg) * 0.9
         brain.add_foci(
@@ -272,7 +294,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
             hemi=labels[i].hemi,
         )
 
-    logger("Adding node labels ...")
+    logger("正在添加节点标签...")
     brain.plotter.add_point_labels(
         coords_arr,
         label_names,
@@ -284,7 +306,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         render_points_as_spheres=False,
     )
 
-    logger("Drawing edges ...")
+    logger("正在绘制连接边...")
     count = 0
     for i in range(len(labels)):
         for j in range(i + 1, len(labels)):
@@ -303,31 +325,31 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
                 )
                 count += 1
 
-    logger(f"Edges drawn: {count}")
+    logger(f"已绘制连接边数量：{count}")
 
-    # 11) Export HTML
+    # 11) 导出 HTML
     outputs_dir = _get_outputs_dir()
     bdf_stem = Path(bdf_path).stem
     output_html = outputs_dir / f"{bdf_stem}_connectivity_map.html"
 
-    logger("Exporting interactive HTML ...")
+    logger("正在导出交互式 HTML 页面...")
 
     try:
         brain.plotter.export_html(str(output_html))
 
         if _is_vtkjs_404_page(output_html):
             raise RuntimeError(
-                "Exported HTML is a VTK.js 404 template (blank page in browser). "
-                "Please verify trame/pyvista versions and runtime environment."
+                "导出的 HTML 实际上是 VTK.js 的 404 模板页（浏览器中会显示空白）。"
+                "请检查 trame / pyvista 版本以及运行环境。"
             )
 
-        logger(f"HTML generated: {output_html}")
+        logger(f"HTML 已生成：{output_html}")
 
-        try:
-            # webbrowser.open(output_html.resolve().as_uri())
-            logger("Attempted to open HTML in default browser")
-        except Exception as e:
-            logger(f"Auto-open browser failed: {e}")
+        # try:
+        #     webbrowser.open(output_html.resolve().as_uri())
+        #     logger("已尝试用默认浏览器打开 HTML")
+        # except Exception as e:
+        #     logger(f"自动打开浏览器失败：{e}")
 
     finally:
         try:
@@ -335,7 +357,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10):
         except Exception:
             pass
 
-    logger("Connectivity visualization completed")
-    logger("========== Connectivity Visualization End ==========")
+    logger("功能连接可视化完成。")
+    logger("========== 功能连接可视化结束 ==========")
 
     return str(output_html)
