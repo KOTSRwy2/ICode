@@ -1,12 +1,12 @@
 import os
 import re
-import webbrowser
 import numpy as np
 import nibabel as nib
 from nilearn import plotting, image, masking
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.pyplot as plt
+from nilearn.connectome import ConnectivityMeasure
 
 plt.switch_backend('Agg')
 
@@ -21,17 +21,13 @@ def _get_fmri_output_dir():
     return output_dir
 
 
-def _get_mni152_template_path():
-    return os.path.join(_get_project_root(), "templates", "mni152", "mni_icbm152_t1_tal_nlin_sym_09a.nii")
-
-
 def _get_aal_template_paths():
     aal_nii = os.path.join(_get_project_root(), "templates", "aal", "aal.nii")
     aal_txt = os.path.join(_get_project_root(), "templates", "aal", "aal.nii.txt")
     return aal_nii, aal_txt
 
 
-class FMRIProcessor(QThread):
+class FMRIConnectivityThread(QThread):
     log_pyqtSignal = pyqtSignal(str)
     finish_pyqtSignal = pyqtSignal()
 
@@ -71,51 +67,6 @@ class FMRIProcessor(QThread):
         fmri_preprocessed = masking.unmask(fmri_masked, mask_img)
         return fmri_preprocessed, mask_img
 
-    def _visualize_fmri_activation(self, fmri_img, mask_img):
-        self.log_pyqtSignal.emit("生成fMRI激活可视化HTML...")
-        fmri_mean = image.mean_img(fmri_img)
-        mni_template_path = _get_mni152_template_path()
-        if not os.path.exists(mni_template_path):
-            raise FileNotFoundError(f"MNI152模板未找到！请检查路径：{mni_template_path}")
-        mni_template = nib.load(mni_template_path)
-
-        base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
-        if base_name.endswith('.nii'):
-            base_name = base_name[:-4]
-
-        html_path = os.path.join(self.output_dir, f"{base_name}_activation.html")
-
-        view = plotting.view_img(
-            fmri_mean, bg_img=mni_template, threshold=1.5,
-            title="fMRI Activation Map", cmap="RdYlBu_r", black_bg=True
-        )
-        view.save_as_html(html_path)
-
-        with open(html_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-
-        css_style = """
-        <style>
-            body, html { background-color: #000000 !important; margin: 0 !important; padding: 20px !important; height: 100% !important; width: 100% !important; box-sizing: border-box !important; }
-            h1, h2, h3 { color: #ffffff !important; text-shadow: 2px 2px 4px #000000 !important; font-size: 16px !important; text-align: center !important; white-space: normal !important; width: 100% !important; margin: 10px 0 20px 0 !important; display: block !important; }
-            .widget-colorbar { background-color: #000000 !important; margin: 20px auto 0 auto !important; display: block !important; max-width: 80% !important; }
-            .renderer-container, .canvas-container, canvas { background-color: #000000 !important; margin: 0 auto !important; display: block !important; max-width: 100% !important; }
-            .view-label, .colorbar-label { color: #ffffff !important; font-size: 14px !important; }
-            ::-webkit-scrollbar { display: none !important; }
-            * { border: none !important; box-shadow: none !important; }
-        </style>
-        """
-        if '<head>' in html_content:
-            html_content = html_content.replace('<head>', f'<head>{css_style}')
-
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
-        if os.path.exists(html_path):
-            # webbrowser.open(f'file://{os.path.abspath(html_path)}')
-            self.log_pyqtSignal.emit(f"fMRI激活HTML已生成并打开：{html_path}")
-
-        return html_path
 
     def _compute_fmri_connectivity(self, fmri_img, mask_img):
         self.log_pyqtSignal.emit("计算fMRI功能连接矩阵（AAL脑区）...")
@@ -224,6 +175,21 @@ class FMRIProcessor(QThread):
         conn_matrix = np.corrcoef(roi_timeseries)
         self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]}×{conn_matrix.shape[1]} 功能连接矩阵")
 
+        ######### 2. 绘制连接矩阵热力图（放大画布适配完整脑区，纯黑背景对齐EEG）
+        plt.figure(figsize=(15, 12))
+        plt.style.use('dark_background')
+        plt.imshow(conn_matrix, cmap="coolwarm", vmin=-1, vmax=1)
+        plt.colorbar(label="Pearson Correlation")
+        plt.title("fMRI Functional Connectivity Matrix (Full AAL ROI)", fontsize=14, color="orangered")
+        plt.xlabel("ROI Index", fontsize=12, color="white")
+        plt.ylabel("ROI Index", fontsize=12, color="white")
+        plt.xticks(color="white")
+        plt.yticks(color="white")
+        heatmap_path = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.png")
+        plt.savefig(heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        plt.close()
+        self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{heatmap_path}")
+        ########
         self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
@@ -231,7 +197,9 @@ class FMRIProcessor(QThread):
 
         html_path = os.path.join(self.output_dir, f"{base_name}_connectivity.html")
 
-        edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
+        #edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
+        edge_threshold = "90%"
+
         view = plotting.view_connectome(
             conn_matrix, aal_coords, edge_threshold=edge_threshold,
             title="", node_color="yellow", node_size=8, edge_cmap="bwr", colorbar=False
@@ -254,6 +222,12 @@ class FMRIProcessor(QThread):
             .renderer-container, .canvas-container, canvas, #gl-canvas { background-color: #000000 !important; outline: none !important; width: 100% !important; height: 100% !important; }
             ::-webkit-scrollbar { display: none !important; }
             * { border: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            .modebar {
+                gap: 12px !important; /* 按钮之间的间距，可按需调整 */
+                padding: 8px 12px !important; /* 模式栏内边距 */
+            }
+            .modebar-btn {
+                margin: 0 4px !important; /* 单个按钮的左右边距 */
         </style>
         """
 

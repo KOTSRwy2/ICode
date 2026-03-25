@@ -18,7 +18,10 @@ from qfluentwidgets import FluentIcon as FIF
 from .core import log_manager, WorkerThread, FMRIWorkerThread, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
 from source_localization import run_source_localization
 from connectivity_visualization import run_connectivity_visualization
-from fmri_visualization import FMRIProcessor
+from fmri_activation import FMRIActivationThread
+from fmri_connectivity import FMRIConnectivityThread
+from CustomWebEnginePage import CustomWebEngineView
+
 
 class VisualizationWebWindow(QMainWindow):
     """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
@@ -29,8 +32,12 @@ class VisualizationWebWindow(QMainWindow):
         self.setWindowTitle(title)
         self.resize(1280, 860)
 
-        self.web = QWebEngineView(self)
+        self.web = CustomWebEngineView(self)
+
         self.setCentralWidget(self.web)
+        self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
+
+        # self.setCentralWidget(self.web)
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
 
@@ -343,9 +350,8 @@ class EEGConnectivityPage(BaseFunctionPage):
         if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
             return
 
-        text = self.duration_box.currentText()
-        mapping = {"5 秒": 5, "10 秒": 10, "30 秒": 30, "60 秒": 60, "全部": None}
-        duration_sec = mapping[text]
+        duration_sec = self.get_selected_duration()
+        analysis_band = self.get_selected_band()
 
         self.set_running_state(True, "初始化连接分析网络...")
         log_manager.add_log("开始运行 EEG 功能连接...", self.module_name)
@@ -362,6 +368,7 @@ class EEGConnectivityPage(BaseFunctionPage):
             out_path = run_connectivity_visualization(
                 self.bdf_path,
                 logger=update_log,
+                analysis_band=analysis_band,
                 duration_sec=duration_sec
             )
             self._on_task_finished(True, out_path)
@@ -420,7 +427,7 @@ class FMRIActivationPage(BaseFunctionPage):
         self.set_running_state(True, "初始化 fMRI 处理管道...")
         log_manager.add_log("开始 fMRI 脑区激活分析...", self.module_name)
 
-        self.worker = FMRIWorkerThread(FMRIProcessor, self.fmri_path, tr=2.0, mode="activation")
+        self.worker = FMRIWorkerThread(FMRIActivationThread, self.fmri_path, tr=2.0, mode="activation")
         def update_log(msg):
             self.status_label.setText(f"处理中: {msg}")
             log_manager.add_log(msg, self.module_name)
@@ -481,7 +488,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
         self.set_running_state(True, "初始化 fMRI 连接分析流水线...")
         log_manager.add_log("开始计算 ROI 网络...", self.module_name)
 
-        self.worker = FMRIWorkerThread(FMRIProcessor, self.fmri_path, tr=2.0, mode="connectivity")
+        self.worker = FMRIWorkerThread(FMRIConnectivityThread, self.fmri_path, tr=2.0, mode="connectivity")
         def update_log(msg):
             self.status_label.setText(f"处理中: {msg}")
             log_manager.add_log(msg, self.module_name)
