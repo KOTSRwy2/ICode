@@ -54,7 +54,7 @@ class EEGFMRIFluentApp(FluentWindow):
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
         
         # 设置默认亮色主题以符合科学计算普遍交互观感
-        setTheme(Theme.LIGHT, save=True)
+        setTheme(Theme.AUTO, save=True)
         setThemeColor("#1677ff") # 默认选用医学蓝
         
         desktop = QApplication.desktop().availableGeometry()

@@ -1,8 +1,9 @@
 import os
 import shutil
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal, QEvent
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog, QWidget, QSizePolicy
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from CustomWebEnginePage import CustomWebEngineView
 from qfluentwidgets import (
     CardWidget, SubtitleLabel, CaptionLabel, TransparentToolButton,
     FluentIcon as FIF, BodyLabel, InfoBar, InfoBarPosition, IconWidget, Flyout, FlyoutAnimationType
@@ -114,12 +115,12 @@ class InteractiveChartCard(CardWidget):
         self.header_layout.addWidget(self.btn_expand, 0, Qt.AlignTop)
 
         # === 2. Web 渲染区 (Content) ===
-        self.web_view = QWebEngineView(self)
-        # 【关键修复】赋予固定的最小高度，防止 QVBoxLayout 将其高度压扁为 0，实现一行一图
+        self.web_view = CustomWebEngineView(self)
         self.web_view.setMinimumHeight(400)
         self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # 设置背景透明，使得图表底层透过 CardWidget 的颜色，完美适配亮/暗主题
-        self.web_view.page().setBackgroundColor(Qt.transparent)
+
+        # self.web_view.page().setBackgroundColor(Qt.transparent)
+        self.web_view.setStyleSheet("background-color: #f9f9f9;")
 
         if os.path.exists(self.html_path):
             self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.html_path)))

@@ -146,7 +146,7 @@ class FMRIActivationThread(QThread):
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
         )
         path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
-        fig1.write_html(path1, include_plotlyjs=True)
+        fig1.write_html(path1, include_plotlyjs=True, full_html=True)
         self._inject_fluent_css(path1)
         results_paths['curve'] = path1
 
@@ -169,7 +169,7 @@ class FMRIActivationThread(QThread):
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
         )
         path2 = os.path.join(self.output_dir, f"{base_name}_hist.html")
-        fig2.write_html(path2, include_plotlyjs=True)
+        fig2.write_html(path2, include_plotlyjs=True, full_html=True)
         self._inject_fluent_css(path2)
         results_paths['histogram'] = path2
 
@@ -197,20 +197,28 @@ class FMRIActivationThread(QThread):
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths
 
+        self.log_pyqtSignal.emit("所有激活图表与统计文件已保存至输出文件夹！")
+
+        return html_path
+
     def _inject_fluent_css(self, html_path):
-        """注入 CSS 以适配 Fluent UI 主题，防止出现刺眼的白边"""
         if not os.path.exists(html_path):
             return
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
         css = """
-        <style>
-            body, html { background-color: transparent !important; margin: 0; padding: 0; height: 100%; width: 100%; }
-            ::-webkit-scrollbar { width: 8px; height: 8px; }
-            ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-            ::-webkit-scrollbar-track { background: transparent; }
-        </style>
-        """
+            <script>
+                const originalInsertRule = CSSStyleSheet.prototype.insertRule;
+                CSSStyleSheet.prototype.insertRule = function(rule, index) {
+                    try {
+                        return originalInsertRule.call(this, rule, index);
+                    } catch (e) {
+                        console.warn("屏蔽了不兼容的 CSS 规则: ", rule);
+                        return 0;
+                    }
+                };
+            </script>
+            """
         if '<head>' in content:
             content = content.replace('<head>', f'<head>{css}')
         with open(html_path, 'w', encoding='utf-8') as f:
@@ -233,6 +241,4 @@ class FMRIActivationThread(QThread):
             json.dump(summary, f, indent=4, ensure_ascii=False)
         '''
 
-        self.log_pyqtSignal.emit("所有激活图表与统计文件已保存至输出文件夹！")
 
-        return html_path

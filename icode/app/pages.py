@@ -462,7 +462,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 html_path=result_data.get('curve', ''),
                 detail_text="【详细说明】该曲线展示了在不同统计阈值下，全脑被识别为“激活”的体素数量变化趋势。通常用于辅助寻找信噪比最佳的截断点。X轴为强度阈值，Y轴为有效体素数量。"
             )
-
+            card1.web_view.setFixedHeight(500)
             # 挂载卡片 2：直方图
             card2 = InteractiveChartCard(
                 title="激活强度分布直方图",
@@ -470,7 +470,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 html_path=result_data.get('histogram', ''),
                 detail_text="【详细说明】此直方图反映了全脑激活体素强度的频数分布。图中的垂直虚线代表系统为您计算的 95% 置信区间阈值，虚线右侧即为极具统计显著性的高亮激活脑区。"
             )
-
+            card2.web_view.setFixedHeight(500)
             # 挂载卡片 3：交互切片脑图
             card3 = InteractiveChartCard(
                 title="三正交切片交互脑图 (最高激活点)",
@@ -478,6 +478,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 html_path=result_data.get('ortho', ''),
                 detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。"
             )
+            print(result_data)
             # 赋予脑图卡片更大的高度
             card3.web_view.setFixedHeight(500)
 
@@ -488,6 +489,10 @@ class FMRIActivationPage(BaseFunctionPage):
 
             # 将卡片容器添加到当前页面的主内容区底部
             self.content_layout.addWidget(self.cards_container)
+
+            self.view.updateGeometry()
+            self.update()
+            QApplication.processEvents()
 
         else:
             log_manager.add_log(f"fMRI 处理失败: {result_data}", self.module_name)
