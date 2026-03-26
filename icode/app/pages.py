@@ -1,27 +1,26 @@
 # -*- coding: utf-8 -*-
 import os
-from PyQt5.QtCore import Qt, QSize, QUrl
+import ast
+from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QMainWindow, QAction
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QMainWindow,QGridLayout
 )
-from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
-    ComboBoxSettingCard, OptionsConfigItem, OptionsValidator,
-    qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
+    ComboBoxSettingCard, qconfig, Theme, setTheme, InfoBar, InfoBarPosition,
     TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
-    SubtitleLabel, BodyLabel, FluentStyleSheet, isDarkTheme
+    SubtitleLabel, BodyLabel
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from .core import log_manager, WorkerThread, FMRIWorkerThread, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
+from .core import log_manager, FMRIWorkerThread, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
 from source_localization import run_source_localization
 from connectivity_visualization import run_connectivity_visualization
 from fmri_activation import FMRIActivationThread
 from fmri_connectivity import FMRIConnectivityThread
 from CustomWebEnginePage import CustomWebEngineView
-
+from InteractiveChartCard import InteractiveChartCard
 
 class VisualizationWebWindow(QMainWindow):
     """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
@@ -436,16 +435,71 @@ class FMRIActivationPage(BaseFunctionPage):
         self.worker.finished_sig.connect(self._on_task_finished)
         self.worker.start()
 
-    def _on_task_finished(self, success, out_path):
-        self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
-            log_manager.add_log(f"fMRI 激活图生成完成: {out_path}", self.module_name)
-            self.show_success_dialog("计算完毕", f"已输出 fMRI 脑区激活图到:\n{out_path}")
-            self.show_html_in_subwindow(out_path, "fMRI 激活定位可视化")
-        else:
-            log_manager.add_log(f"fMRI 处理失败: {out_path}", self.module_name)
-            self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{out_path}")
 
+    def _on_task_finished(self, success, result_data):
+        """处理子线程返回的结果"""
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+
+        if success and result_data is not None:
+            result_data = ast.literal_eval(result_data)
+            log_manager.add_log(f"fMRI 图表渲染完成，准备挂载UI", self.module_name)
+            self.show_success_dialog("计算完毕", "激活分析已完成，请在下方查看交互图表。")
+
+            # 清理之前可能残留的卡片
+            self._clear_previous_cards()
+
+            # 创建一个用于容纳卡片的布局
+            self.cards_container = QWidget()
+            self.cards_container.setObjectName("CardsContainer")
+            self.cards_layout = QVBoxLayout(self.cards_container)
+            self.cards_layout.setContentsMargins(0, 16, 0, 0)
+            self.cards_layout.setSpacing(16)
+
+            # 挂载卡片 1：曲线图
+            card1 = InteractiveChartCard(
+                title="阈值-激活体素数曲线",
+                description="点击查看统计学释义",
+                html_path=result_data.get('curve', ''),
+                detail_text="【详细说明】该曲线展示了在不同统计阈值下，全脑被识别为“激活”的体素数量变化趋势。通常用于辅助寻找信噪比最佳的截断点。X轴为强度阈值，Y轴为有效体素数量。"
+            )
+
+            # 挂载卡片 2：直方图
+            card2 = InteractiveChartCard(
+                title="激活强度分布直方图",
+                description="点击查看频数分布释义",
+                html_path=result_data.get('histogram', ''),
+                detail_text="【详细说明】此直方图反映了全脑激活体素强度的频数分布。图中的垂直虚线代表系统为您计算的 95% 置信区间阈值，虚线右侧即为极具统计显著性的高亮激活脑区。"
+            )
+
+            # 挂载卡片 3：交互切片脑图
+            card3 = InteractiveChartCard(
+                title="三正交切片交互脑图 (最高激活点)",
+                description="点击查看 3D 视图交互操作指南",
+                html_path=result_data.get('ortho', ''),
+                detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。"
+            )
+            # 赋予脑图卡片更大的高度
+            card3.web_view.setFixedHeight(500)
+
+            # 添加到垂直布局
+            self.cards_layout.addWidget(card1)
+            self.cards_layout.addWidget(card2)
+            self.cards_layout.addWidget(card3)
+
+            # 将卡片容器添加到当前页面的主内容区底部
+            self.content_layout.addWidget(self.cards_container)
+
+        else:
+            log_manager.add_log(f"fMRI 处理失败: {result_data}", self.module_name)
+            self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{result_data}")
+
+
+    def _clear_previous_cards(self):
+        """清空之前生成的卡片容器（防止多次运行后无限往下叠加）"""
+        if hasattr(self, 'cards_container') and self.cards_container is not None:
+            self.content_layout.removeWidget(self.cards_container)
+            self.cards_container.deleteLater()
+            self.cards_container = None
 
 # ==========================================
 # fMRI 连接分析页面

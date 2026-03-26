@@ -6,6 +6,8 @@ from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.pyplot as plt
 import numpy as np
 from nilearn import plotting
+import plotly.graph_objects as go
+import json
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
 plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
@@ -29,7 +31,7 @@ def _get_mni152_template_path():
 
 class FMRIActivationThread(QThread):
     log_pyqtSignal = pyqtSignal(str)
-    finish_pyqtSignal = pyqtSignal()
+    finish_pyqtSignal = pyqtSignal(bool,dict)
 
     def __init__(self, fmri_nifti_path, tr=2.0, mask_path=None):
         super().__init__()
@@ -42,10 +44,10 @@ class FMRIActivationThread(QThread):
         try:
             self.log_pyqtSignal.emit("开始处理fMRI数据...")
             fmri_img, mask_img = self._preprocess_fmri()
-            self._visualize_fmri_activation(fmri_img, mask_img)
+            result_paths = self._visualize_fmri_activation(fmri_img, mask_img)
             self._compute_fmri_connectivity(fmri_img, mask_img)
             self.log_pyqtSignal.emit(f"fMRI处理完成！结果已保存至：{self.output_dir}")
-            self.finish_pyqtSignal.emit()
+            self.finish_pyqtSignal.emit(True,result_paths)
         except Exception as e:
             self.log_pyqtSignal.emit(f"fMRI处理出错：{str(e)}")
             QMessageBox.critical(None, "错误", f"fMRI处理失败：{str(e)}")
@@ -120,58 +122,99 @@ class FMRIActivationThread(QThread):
         self.log_pyqtSignal.emit("生成激活统计图表...")
 
         # 1. 读取激活数据
+        results_paths = {}
         data = fmri_mean.get_fdata()
         data = data[data > 0]
+        threshold_95 = np.percentile(data, 95)
 
         # 2. 阈值-体素数曲线
-        plt.figure(figsize=(8, 4))
+        self.log_pyqtSignal.emit("生成阈值-体素数曲线...")
         thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
         counts = [np.sum(data > t) for t in thresholds]
-        plt.plot(thresholds, counts, 'b-o', linewidth=2)
-        plt.xlabel("激活阈值")
-        plt.ylabel("激活体素数")
-        plt.title("阈值-激活体素数曲线")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, "threshold_voxel_curve.png"), dpi=300)
-        plt.close()
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(
+            x=thresholds, y=counts, mode='lines+markers',
+            name='体素数', line=dict(color='#1677ff', width=3),
+            marker=dict(size=8, symbol='circle')
+        ))
+        # 关键配置：设置透明背景与现代字体，适配 Fluent UI
+        fig1.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=40, r=40, t=20, b=40),
+            xaxis=dict(title='激活阈值', gridcolor='rgba(128,128,128,0.2)'),
+            yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
+            font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
+        )
+        path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
+        fig1.write_html(path1, include_plotlyjs=True)
+        self._inject_fluent_css(path1)
+        results_paths['curve'] = path1
 
         ######### 3. 激活强度直方图
-        plt.figure(figsize=(8, 4))
-        plt.hist(data, bins=50, alpha=0.7, color="c", edgecolor="black")
-        plt.axvline(np.percentile(data, 95), color="r", linestyle="--", label="95%阈值")
-        plt.xlabel("激活强度")
-        plt.ylabel("体素数量")
-        plt.legend()
-        plt.title("激活强度分布直方图")
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, "activation_intensity_hist.png"), dpi=300)
-        plt.close()
+        self.log_pyqtSignal.emit("生成激活强度分布直方图...")
+        fig2 = go.Figure()
+        fig2.add_trace(go.Histogram(
+            x=data.flatten(), nbinsx=50,
+            marker_color='rgba(0, 255, 255, 0.6)',  # 保留青色特征，增加透明度
+            marker_line_color='black', marker_line_width=1, name="体素数量"
+        ))
+        # 添加 95% 阈值辅助线 (原版红色虚线)
+        fig2.add_vline(x=threshold_95, line_width=2, line_dash="dash", line_color="red",
+                       annotation_text="95% 阈值", annotation_position="top right")
+        fig2.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=40, r=40, t=20, b=40),
+            xaxis=dict(title='激活强度', gridcolor='rgba(128,128,128,0.2)'),
+            yaxis=dict(title='体素数量', gridcolor='rgba(128,128,128,0.2)'),
+            font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
+        )
+        path2 = os.path.join(self.output_dir, f"{base_name}_hist.html")
+        fig2.write_html(path2, include_plotlyjs=True)
+        self._inject_fluent_css(path2)
+        results_paths['histogram'] = path2
 
 
         ####### 4. 三正交切片图（强制显示最强激活点！）（切的点太怪了感觉不对，如果可以直接在前端交互窗口加个截图功能？）
-        threshold = np.percentile(data, 95)
-        data_max = np.max(np.abs(fmri_mean.get_fdata()))
-
-        # 第一步：找最强的激活峰值坐标
+        self.log_pyqtSignal.emit("生成交互式三正交切片视图...")
+        # 寻找最强激活峰值坐标作为默认切片中心
         from nilearn.masking import compute_epi_mask
         mask = compute_epi_mask(fmri_mean)
         peak_coords = plotting.find_xyz_cut_coords(fmri_mean, mask_img=mask)
 
-        # 第二步：强制切点
-        plotting.plot_stat_map(
-            fmri_mean,
-            bg_img=mni_template,
-            threshold=threshold,
-            display_mode="ortho",
-            title="三正交切片激活图",
-            vmax=data_max,
-            vmin=-data_max,
+        path3 = os.path.join(self.output_dir, f"{base_name}_ortho.html")
+        view = plotting.view_img(
+            fmri_mean, bg_img=mni_template,
+            threshold=threshold_95,  # 使用计算出的 95% 阈值
+            title="Interactive fMRI Ortho Viewer",
             cmap="RdYlBu_r",
-            cut_coords=peak_coords,  # 强制切最强点
+            cut_coords=peak_coords,  # 强制切入最强点
+            black_bg=False  # 关闭纯黑背景，以便和应用主题融合
         )
-        plt.savefig(os.path.join(self.output_dir, "ortho_activation.png"), dpi=300, bbox_inches='tight')
-        plt.close()
+        view.save_as_html(path3)
+        # 这里保留您原有的 CSS 注入逻辑以美化 view_img，但移除了强制黑色背景
+        results_paths['ortho'] = path3
+
+        self.log_pyqtSignal.emit("所有交互式图表已生成！")
+        return results_paths
+
+    def _inject_fluent_css(self, html_path):
+        """注入 CSS 以适配 Fluent UI 主题，防止出现刺眼的白边"""
+        if not os.path.exists(html_path):
+            return
+        with open(html_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        css = """
+        <style>
+            body, html { background-color: transparent !important; margin: 0; padding: 0; height: 100%; width: 100%; }
+            ::-webkit-scrollbar { width: 8px; height: 8px; }
+            ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+        </style>
+        """
+        if '<head>' in content:
+            content = content.replace('<head>', f'<head>{css}')
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(content)
 
         '''
         # 5. 激活簇表（threshold报错）

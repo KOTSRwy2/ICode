@@ -27,6 +27,7 @@ from app.pages import (
     LogReportPage,
     SettingsPage
 )
+
 class EEGFMRIFluentApp(FluentWindow):
     def __init__(self):
         super().__init__()
@@ -45,6 +46,8 @@ class EEGFMRIFluentApp(FluentWindow):
 
         # 3. 挂载到左侧导航树
         self._init_navigation()
+
+        qconfig.themeChanged.connect(self._on_theme_changed)
 
     def _init_window_spec(self):
         self.resize(1100, 780)
@@ -72,6 +75,12 @@ class EEGFMRIFluentApp(FluentWindow):
         # 最底部系统面板
         self.addSubInterface(self.page_log, FIF.DOCUMENT, "日志中心", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.page_setting, FIF.SETTING, "系统设置", NavigationItemPosition.BOTTOM)
+    
+    def _on_theme_changed(self, theme: Theme):
+        """主题切换时刷新所有子页面"""
+        self.update()
+        self.repaint()
+        QApplication.processEvents()
 
 if __name__ == "__main__":
     # 高分屏支持
