@@ -7,10 +7,12 @@ connectivity_visualization.py
 from __future__ import annotations
 
 import os
+import gc
 from pathlib import Path
 import webbrowser
 
 import mne
+import pyvista as pv
 import numpy as np
 from mne.datasets import fetch_fsaverage
 
@@ -97,12 +99,12 @@ def _get_band_range(analysis_band: str):
     return band_map[analysis_band]
 
 
-def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
-    """运行基于模板的 EEG 功能连接可视化，并导出交互式 HTML"""
+def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
+    """后台线程执行：只做 EEG 功能连接计算，不创建 3D 场景"""
     if logger is None:
         logger = _default_logger
 
-    logger("========== 功能连接可视化开始 ==========")
+    logger("========== 功能连接计算开始 ==========")
 
     if not os.path.exists(bdf_path):
         raise FileNotFoundError(f"BDF 文件不存在：{bdf_path}")
@@ -119,18 +121,14 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
     logger(f"src 文件：{src_path}")
     logger(f"bem 文件：{bem_path}")
 
-    # 2) 设置 3D 后端
-    logger("正在设置 3D 后端：pyvistaqt")
-    mne.viz.set_3d_backend("pyvistaqt")
-
-    # 3) 读取 BDF 文件
+    # 2) 读取 BDF 文件
     logger("正在读取 BDF 数据（延迟加载）...")
     raw = mne.io.read_raw_bdf(bdf_path, preload=False)
 
     logger(f"通道总数：{len(raw.ch_names)}")
     logger(f"前几个通道名：{raw.ch_names[:10]}")
 
-    # 4) 按用户选择裁剪分析时长
+    # 3) 按用户选择裁剪分析时长
     total_duration = float(raw.times[-1]) if raw.n_times > 1 else 0.0
     if duration_sec is None:
         actual_duration = total_duration
@@ -150,7 +148,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
     raw.load_data()
     logger("数据加载完成")
 
-    # 5) 处理非 EEG 通道类型
+    # 4) 处理非 EEG 通道类型
     logger("正在识别并设置非 EEG 通道类型...")
     ch_type_map = {}
     for ch in raw.ch_names:
@@ -166,7 +164,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
     else:
         logger("未发现 ECG / EMG1 / EMG2 通道，跳过设置")
 
-    # 6) 设置电极模板并预处理
+    # 5) 设置电极模板并预处理
     logger("正在设置 standard_1020 电极模板...")
     raw.set_montage("standard_1020", on_missing="ignore")
 
@@ -177,7 +175,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
     raw.set_eeg_reference("average", projection=True)
     raw.apply_proj()
 
-    # 7) 构建源模型
+    # 6) 构建源模型
     logger("正在加载源空间和 BEM 模型...")
     src = mne.read_source_spaces(src_path)
     bem = mne.read_bem_solution(bem_path)
@@ -206,7 +204,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
         depth=0.8,
     )
 
-    # 8) 对当前时间段做逆解
+    # 7) 对当前时间段做逆解
     logger("正在进行逆向求解...")
     stc = mne.minimum_norm.apply_inverse_raw(
         raw,
@@ -218,7 +216,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
         pick_ori=None,
     )
 
-    # 9) 提取脑区并计算连接矩阵
+    # 8) 提取脑区并计算连接矩阵
     logger("正在加载皮层脑区标签（aparc）...")
     labels = mne.read_labels_from_annot(
         subject=subject,
@@ -241,12 +239,46 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
 
     logger("正在计算功能连接矩阵（皮尔逊相关）...")
     connectivity_matrix = np.corrcoef(label_ts)
+    connectivity_matrix = np.nan_to_num(connectivity_matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # 10) 创建 3D 脑场景
+    outputs_dir = _get_outputs_dir()
+    bdf_stem = Path(bdf_path).stem
+    output_html = outputs_dir / f"{bdf_stem}_connectivity_map.html"
+
+    logger("后台计算完成，等待主线程生成 3D 场景并导出 HTML...")
+    logger("========== 功能连接计算结束 ==========")
+
+    return {
+        "subject": subject,
+        "subjects_dir": str(subjects_dir),
+        "labels": labels,
+        "connectivity_matrix": connectivity_matrix,
+        "output_html": str(output_html),
+        "band_label": band_label,
+    }
+
+
+def render_connectivity_html(result, logger=None):
+    """主线程执行：创建 3D 脑场景并导出 HTML"""
+    if logger is None:
+        logger = _default_logger
+
+    subject = result["subject"]
+    subjects_dir = result["subjects_dir"]
+    labels = result["labels"]
+    connectivity_matrix = result["connectivity_matrix"]
+    output_html = Path(result["output_html"])
+
+    logger("========== 主线程渲染开始 ==========")
+
+    # 这里才设置 3D 后端，并创建 Brain
+    logger("正在设置 3D 后端：pyvistaqt")
+    mne.viz.set_3d_backend("pyvistaqt")
+
     logger("正在创建 3D 脑场景...")
     brain = mne.viz.Brain(
         subject=subject,
-        subjects_dir=str(subjects_dir),
+        subjects_dir=subjects_dir,
         surf="inflated",
         hemi="both",
         cortex="low_contrast",
@@ -275,7 +307,7 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
     label_names = []
 
     for label in labels:
-        v_idx = label.center_of_mass(subject=subject, subjects_dir=str(subjects_dir))
+        v_idx = label.center_of_mass(subject=subject, subjects_dir=subjects_dir)
         label_vertices.append(v_idx)
         pos = brain.geo[label.hemi].coords[v_idx]
         label_coords.append(pos)
@@ -293,18 +325,6 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
             color="orangered",
             hemi=labels[i].hemi,
         )
-
-    logger("正在添加节点标签...")
-    brain.plotter.add_point_labels(
-        coords_arr,
-        label_names,
-        font_size=12,
-        text_color="white",
-        always_visible=True,
-        point_size=0,
-        shadow=True,
-        render_points_as_spheres=False,
-    )
 
     logger("正在绘制连接边...")
     count = 0
@@ -326,12 +346,6 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
                 count += 1
 
     logger(f"已绘制连接边数量：{count}")
-
-    # 11) 导出 HTML
-    outputs_dir = _get_outputs_dir()
-    bdf_stem = Path(bdf_path).stem
-    output_html = outputs_dir / f"{bdf_stem}_connectivity_map.html"
-
     logger("正在导出交互式 HTML 页面...")
 
     try:
@@ -345,12 +359,6 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
 
         logger(f"HTML 已生成：{output_html}")
 
-        # try:
-        #     webbrowser.open(output_html.resolve().as_uri())
-        #     logger("已尝试用默认浏览器打开 HTML")
-        # except Exception as e:
-        #     logger(f"自动打开浏览器失败：{e}")
-
     finally:
         try:
             brain.close()
@@ -358,6 +366,20 @@ def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analy
             pass
 
     logger("功能连接可视化完成。")
-    logger("========== 功能连接可视化结束 ==========")
+    logger("========== 主线程渲染结束 ==========")
 
     return str(output_html)
+
+
+def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
+    """
+    兼容旧调用方式：
+    先计算，再渲染导出
+    """
+    result = compute_connectivity_data(
+        bdf_path=bdf_path,
+        logger=logger,
+        duration_sec=duration_sec,
+        analysis_band=analysis_band,
+    )
+    return render_connectivity_html(result, logger=logger)

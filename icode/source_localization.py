@@ -3,11 +3,12 @@
 source_localization.py
 功能1：模板版 EEG 源定位可视化
 
-逻辑：
-1. 输入 BDF 文件
-2. 优先使用项目目录下 assets/fsaverage 模板
-3. 如果模板不存在或不完整，则自动下载
-4. 做模板脑源定位并弹出 3D 窗口
+改造说明：
+1. 新增 EEGSourceLocalizationThread，用于后台执行重计算
+2. 将“计算”和“显示”拆开：
+   - compute_source_localization(): 后台线程执行
+   - show_source_localization_window(): 主线程执行
+3. 这样可以避免主界面长时间卡死未响应
 """
 
 import os
@@ -15,23 +16,26 @@ from pathlib import Path
 
 import mne
 from mne.datasets import fetch_fsaverage
+from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QApplication
+
 from mne_style import (
     MNE_STYLE_DARK,
     MNE_STYLE_LIGHT,
 )
+
 
 def _default_logger(msg: str):
     print(msg)
 
 
 def _get_project_root():
-    """返回当前项目根目录（也就是 EEGicode 文件夹）"""
+    """返回当前项目根目录"""
     return Path(__file__).resolve().parent
 
 
 def _get_assets_dir():
-    """返回 assets 文件夹路径，不存在就创建"""
+    """返回 assets 文件夹路径，不存在则创建"""
     assets_dir = _get_project_root() / "assets"
     assets_dir.mkdir(exist_ok=True)
     return assets_dir
@@ -49,7 +53,6 @@ def _prepare_fsaverage(logger):
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
 
-    # 如果本地模板不完整，则自动下载
     if not fs_dir.exists() or not src_path.exists() or not bem_path.exists():
         logger("未检测到完整的 fsaverage 模板，正在自动下载到 assets 文件夹...")
         logger(f"下载目录：{assets_dir}")
@@ -69,18 +72,12 @@ def _prepare_fsaverage(logger):
 
     return fs_dir, src_path, bem_path
 
+
 def _apply_mne_window_theme(theme: str = "auto"):
     """
     为当前所有 MNE 3D 窗口应用主题样式表
-    
-    参数
-    ----------
-    theme : str
-        "dark" | "light" | "auto"
     """
-    # 确定使用哪个样式表
     if theme == "auto":
-        # 检测系统主题
         from qfluentwidgets import qconfig, Theme
         is_dark = qconfig.get(qconfig.themeMode) == Theme.DARK
         stylesheet = MNE_STYLE_DARK if is_dark else MNE_STYLE_LIGHT
@@ -88,15 +85,14 @@ def _apply_mne_window_theme(theme: str = "auto"):
         stylesheet = MNE_STYLE_DARK
     else:
         stylesheet = MNE_STYLE_LIGHT
-    
-    # 应用到所有顶层窗口（包括 MNE 弹出的 3D 窗口）
+
     app = QApplication.instance()
     if app:
-        # 找到所有 MNE 相关的窗口并单独应用样式
         for widget in app.topLevelWidgets():
             window_title = widget.windowTitle()
             if "Source Localization" in window_title or "Brain" in window_title:
                 widget.setStyleSheet(stylesheet)
+
 
 def _get_band_range(analysis_band: str):
     """
@@ -114,38 +110,34 @@ def _get_band_range(analysis_band: str):
 
     return band_map[analysis_band]
 
-def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_band="full",plot_theme="auto"):
-    """
-    运行模板版源定位可视化
 
-    参数
-    ----------
-    bdf_path : str
-        用户选择的 .bdf 文件路径
-    logger : callable | None
-        日志函数，例如 main.py 里的 self.log
+def compute_source_localization(
+    bdf_path,
+    logger=None,
+    duration_sec=10,
+    analysis_band="full",
+    plot_theme="auto",
+):
+    """
+    只负责重计算，不负责弹窗。
+    可在后台线程中安全执行。
 
     返回
     ----------
-    stc : mne.SourceEstimate
-        源估计结果对象
+    result : dict
+        后续主线程显示窗口所需的数据
     """
     if logger is None:
         logger = _default_logger
 
     logger("========== 模板源定位开始 ==========")
 
-    # -------------------------
-    # 1. 基础检查
-    # -------------------------
     if not os.path.exists(bdf_path):
         raise FileNotFoundError(f"BDF 文件不存在：{bdf_path}")
 
     logger(f"BDF 文件：{bdf_path}")
 
-    # -------------------------
-    # 2. 准备 fsaverage 模板
-    # -------------------------
+    # 1. 准备模板
     fs_dir, src_path, bem_path = _prepare_fsaverage(logger)
     subject = "fsaverage"
     subjects_dir = fs_dir.parent
@@ -155,24 +147,19 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_ban
     logger(f"src 文件：{src_path}")
     logger(f"bem 文件：{bem_path}")
 
-    # -------------------------
-    # 3. 设置 3D 后端
-    # -------------------------
+    # 2. 设置 3D 后端
     logger("正在设置 3D 可视化后端...")
     mne.viz.set_3d_backend("pyvistaqt")
 
-    # -------------------------
-    # 4. 读取 BDF
-    # -------------------------
-    logger("正在读取 BDF 数据...")
-    raw = mne.io.read_raw_bdf(bdf_path, preload=True)
+    # 3. 读取 BDF
+    # 改成延迟加载：先裁剪，再真正加载数据，比 preload=True 更合理
+    logger("正在读取 BDF 数据（延迟加载）...")
+    raw = mne.io.read_raw_bdf(bdf_path, preload=False)
 
     logger(f"通道总数：{len(raw.ch_names)}")
     logger(f"前几个通道名：{raw.ch_names[:10]}")
 
-    # -------------------------
-    # 4.1 裁剪用户选择的时间段
-    # -------------------------
+    # 4. 裁剪用户选择的时间段
     total_duration = float(raw.times[-1]) if raw.n_times > 1 else 0.0
 
     if duration_sec is None:
@@ -189,11 +176,12 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_ban
 
     logger(f"实际参与处理的数据时长：{raw.times[-1]:.2f} 秒")
 
-    # -------------------------
-    # 5. 非 EEG 通道处理
-    # -------------------------
-    logger("正在处理非 EEG 通道...")
+    logger("正在将所选时间段加载到内存...")
+    raw.load_data()
+    logger("数据加载完成。")
 
+    # 5. 非 EEG 通道处理
+    logger("正在处理非 EEG 通道...")
     ch_type_map = {}
     for ch in raw.ch_names:
         ch_upper = ch.upper()
@@ -208,31 +196,22 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_ban
     else:
         logger("未发现 ECG / EMG1 / EMG2，跳过非 EEG 通道设置。")
 
-    # -------------------------
     # 6. 设置标准电极模板
-    # -------------------------
     logger("正在设置 standard_1020 电极模板...")
     raw.set_montage("standard_1020", on_missing="ignore")
 
-    # -------------------------
     # 7. 预处理
-    # -------------------------
     l_freq, h_freq, band_label = _get_band_range(analysis_band)
-
     logger(f"正在进行预处理：平均参考 + {band_label} 滤波（{l_freq}-{h_freq} Hz）...")
     raw.set_eeg_reference(projection=True)
     raw.filter(l_freq, h_freq, picks="eeg")
 
-    # -------------------------
     # 8. 加载模板模型
-    # -------------------------
     logger("正在加载模板源空间和 BEM...")
     src = mne.read_source_spaces(src_path)
     bem = mne.read_bem_solution(bem_path)
 
-    # -------------------------
     # 9. 构建正向解
-    # -------------------------
     logger("正在构建 forward solution...")
     fwd = mne.make_forward_solution(
         raw.info,
@@ -242,74 +221,82 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_ban
         eeg=True,
         meg=False,
         mindist=5.0,
-        n_jobs=1
+        n_jobs=1,
     )
 
-    # -------------------------
     # 10. 计算协方差
-    # -------------------------
     logger("正在计算 EEG 协方差...")
     cov = mne.compute_raw_covariance(raw, picks="eeg", method="auto")
 
-    # -------------------------
     # 11. 构建逆算子
-    # -------------------------
     logger("正在构建 inverse operator...")
     inverse_operator = mne.minimum_norm.make_inverse_operator(
         raw.info,
         fwd,
         cov,
         loose=0.2,
-        depth=0.8
+        depth=0.8,
     )
 
-    # -------------------------
-    # 12. 逆向求解（取 0~5 秒）
-    # -------------------------
+    # 12. 逆向求解
     logger("正在进行逆向求解（当前所选时间段）...")
-    start = 0
-    stop = raw.n_times
-
     stc = mne.minimum_norm.apply_inverse_raw(
         raw,
         inverse_operator,
         lambda2=1.0 / 9.0,
         method="dSPM",
-        start=start,
-        stop=stop,
-        pick_ori=None
+        start=0,
+        stop=raw.n_times,
+        pick_ori=None,
     )
 
-    # 取当前时间段中间时刻作为初始显示时间
     if len(stc.times) == 0:
         raise ValueError("stc.times 为空，无法设置 initial_time。")
 
     initial_time = float(stc.times[len(stc.times) // 2])
 
-    # -------------------------
-    # 13. 弹出 3D 可视化窗口
-    # -------------------------
+    logger("源定位计算完成，准备返回主线程显示 3D 窗口。")
+    logger("========== 模板源定位计算结束 ==========")
+
+    return {
+        "stc": stc,
+        "subject": subject,
+        "subjects_dir": str(subjects_dir),
+        "initial_time": initial_time,
+        "band_label": band_label,
+        "plot_theme": plot_theme,
+    }
+
+
+def show_source_localization_window(result, logger=None):
+    """
+    只负责在主线程中弹出 3D 窗口
+    """
+    if logger is None:
+        logger = _default_logger
+
+    stc = result["stc"]
+    subject = result["subject"]
+    subjects_dir = result["subjects_dir"]
+    initial_time = result["initial_time"]
+    band_label = result["band_label"]
+    plot_theme = result["plot_theme"]
+
     logger("正在弹出 3D 源定位窗口...")
 
     if plot_theme == "dark":
         bg_color = "#161618"
         fg_color = "white"
-        cortex_style = "low_contrast"  # 暗色主题用低对比度皮层
-        theme_name = "dark"
     elif plot_theme == "light":
         bg_color = "#F5F7FA"
         fg_color = "black"
-        cortex_style = "classic"  # 亮色主题用经典皮层
-        theme_name = "light"
-    else: 
+    else:
         bg_color = "black"
-        fg_color = None  # 自动根据背景选择
-        cortex_style = "classic"
-        theme_name = "auto"
+        fg_color = None
 
-    stc.plot(
+    brain = stc.plot(
         subject=subject,
-        subjects_dir=str(subjects_dir),
+        subjects_dir=subjects_dir,
         initial_time=initial_time,
         hemi="both",
         views="lateral",
@@ -319,14 +306,74 @@ def run_source_localization(bdf_path, logger=None, duration_sec=10, analysis_ban
         background=bg_color,
         foreground=fg_color,
         brain_kwargs={
-        "theme": "dark",
-        "silhouette": False,
-        "interaction": "trackball",
+            "theme": "dark",
+            "silhouette": False,
+            "interaction": "trackball",
         },
     )
+
     _apply_mne_window_theme(plot_theme)
 
     logger("模板源定位完成。")
     logger("========== 模板源定位结束 ==========")
 
-    return stc
+    return brain
+
+
+def run_source_localization(
+    bdf_path,
+    logger=None,
+    duration_sec=10,
+    analysis_band="full",
+    plot_theme="auto",
+):
+    """
+    兼容旧调用方式：
+    同步执行计算 + 弹窗
+    """
+    result = compute_source_localization(
+        bdf_path=bdf_path,
+        logger=logger,
+        duration_sec=duration_sec,
+        analysis_band=analysis_band,
+        plot_theme=plot_theme,
+    )
+    show_source_localization_window(result, logger=logger)
+    return result["stc"]
+
+
+class EEGSourceLocalizationThread(QThread):
+    """
+    EEG 源定位后台线程：
+    - 线程里只做重计算
+    - 算完通过 result_pyqtSignal 把结果发回主线程
+    """
+    log_pyqtSignal = pyqtSignal(str)
+    result_pyqtSignal = pyqtSignal(object)
+    finish_pyqtSignal = pyqtSignal()
+    error_pyqtSignal = pyqtSignal(str)
+
+    def __init__(self, bdf_path, duration_sec=10, analysis_band="full", plot_theme="auto"):
+        super().__init__()
+        self.bdf_path = bdf_path
+        self.duration_sec = duration_sec
+        self.analysis_band = analysis_band
+        self.plot_theme = plot_theme
+
+    def _log(self, msg: str):
+        self.log_pyqtSignal.emit(msg)
+
+    def run(self):
+        try:
+            result = compute_source_localization(
+                bdf_path=self.bdf_path,
+                logger=self._log,
+                duration_sec=self.duration_sec,
+                analysis_band=self.analysis_band,
+                plot_theme=self.plot_theme,
+            )
+            self.result_pyqtSignal.emit(result)
+            self.finish_pyqtSignal.emit()
+        except Exception as e:
+            self.error_pyqtSignal.emit(str(e))
+            self.log_pyqtSignal.emit(f"EEG源定位处理失败：{str(e)}")
