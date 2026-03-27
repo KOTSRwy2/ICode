@@ -22,7 +22,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import FluentIcon as FIF
 from app.common.style_sheet import StyleSheet
-
+from app.common.config import cfg
 import qfluentwidgets, sys
 
 # 导入业务独立页面
@@ -65,6 +65,7 @@ class EEGFMRIFluentApp(FluentWindow):
         qconfig.themeChanged.connect(self._on_theme_changed)
         self.themeListener.start()
 
+        self._on_theme_changed(cfg.theme)
         StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):

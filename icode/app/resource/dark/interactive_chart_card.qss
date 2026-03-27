@@ -2,3 +2,11 @@ InteractiveChartCard,
 CustomWebEngineView {
     background-color: rgb(32, 32, 32);
 }
+
+#web_view{
+    background-color: transparent;
+}
+
+#layout{
+    background-color: transparent;
+}

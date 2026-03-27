@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
 
 from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
-    ComboBoxSettingCard, qconfig, Theme, setTheme, InfoBar, InfoBarPosition,
+    ComboBoxSettingCard, qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
     TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
     SubtitleLabel, BodyLabel, OptionsSettingCard
 )
@@ -39,7 +39,6 @@ class VisualizationWebWindow(QMainWindow):
         self.setCentralWidget(self.web)
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
-        # self.setCentralWidget(self.web)
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
 
@@ -58,14 +57,9 @@ class BaseFunctionPage(ScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # 移除强制样式覆盖，改用 FluentWidgets 推荐的透明化配置
         self.viewport().setObjectName("FunctionPageViewport")
-        # self.viewport().setStyleSheet("background: transparent; border: none;")
 
         self.view = QWidget(self)
         self.view.setObjectName("FunctionPageView")
-        # self.view.setStyleSheet("background: transparent;")
-
-        # 允许通过父窗口（FluentWindow）传递主题背景
-        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         # 主布局
         self.main_layout = QVBoxLayout(self.view)
@@ -592,12 +586,11 @@ class LogReportPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # self.viewport().setStyleSheet("background: transparent; border: none;")
-        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
+
 
         self.view = QWidget(self)
         self.view.setObjectName("LogReportPageView")
-        # self.view.setStyleSheet("background: transparent;")
+
         self.main_layout = QVBoxLayout(self.view)
         self.main_layout.setContentsMargins(36, 36, 36, 36)
 
@@ -670,12 +663,10 @@ class SettingsPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # self.viewport().setStyleSheet("background: transparent; border: none;")
-        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         self.view = QWidget(self)
         self.view.setObjectName("SettingsPageView")
-        # self.view.setStyleSheet("background: transparent;")
+
         self.expand_layout = ExpandLayout(self.view)
         self.expand_layout.setContentsMargins(36, 36, 36, 36)
 

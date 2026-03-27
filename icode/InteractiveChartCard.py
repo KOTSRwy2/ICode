@@ -6,12 +6,12 @@ from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog, QWidget, QSiz
 from CustomWebEnginePage import CustomWebEngineView
 from qfluentwidgets import (
     CardWidget, SubtitleLabel, CaptionLabel, TransparentToolButton,
-    FluentIcon as FIF, BodyLabel, InfoBar, InfoBarPosition, IconWidget, Flyout, FlyoutAnimationType
+    FluentIcon as FIF, BodyLabel, InfoBar, InfoBarPosition, IconWidget, Flyout, FlyoutAnimationType, PushButton,
+    FlyoutView
 )
 from app.common.style_sheet import StyleSheet
 
 class ClickableInfoWidget(QWidget):
-    """自定义带 'i' 图标的可悬浮说明小字区域"""
     def __init__(self, text, detail_text, parent=None):
         super().__init__(parent)
         self.detail_text = detail_text
@@ -46,19 +46,27 @@ class ClickableInfoWidget(QWidget):
 
     def _show_explanation_flyout(self):
         """鼠标悬浮或点击时，平滑弹出气泡卡片展示详细释义"""
-        if not hasattr(self, '_flyout_shown') or not self._flyout_shown:
-            view = BodyLabel(self.detail_text)
-            view.setWordWrap(True)
-            view.setMinimumWidth(250)
-            view.setContentsMargins(12, 12, 12, 12)
-            flyout = Flyout.make(
-                view,
-                self.label,
-                self.window(),
-                FlyoutAnimationType.PULL_UP
-            )
-            self._flyout_shown = True
-            flyout.closed.connect(self._on_flyout_closed)
+        view = FlyoutView(
+            title='杰洛·齐贝林',
+            content="触网而起的网球会落到哪一侧，谁也无法知晓。\n如果那种时刻到来，我希望「女神」是存在的。\n这样的话，不管网球落到哪一边，我都会坦然接受的吧。",
+            image='resource/SBR.jpg',
+            isClosable=True
+            # image='resource/yiku.gif',
+        )
+
+        # add button to view
+        button = PushButton('Action')
+        button.setFixedWidth(120)
+        view.addWidget(button, align=Qt.AlignRight)
+
+        # adjust layout (optional)
+        view.widgetLayout.insertSpacing(1, 5)
+        view.widgetLayout.addSpacing(5)
+        view.setObjectName("layout")
+        # show view
+        w = Flyout.make(view, self, self)
+        view.closed.connect(w.close)
+        StyleSheet.INTERACTIVE_CHART_CARD.apply(view)
             
     def _on_flyout_closed(self):
         self._flyout_shown = False
@@ -108,7 +116,7 @@ class InteractiveChartCard(CardWidget):
         self.btn_export.clicked.connect(self._export_html)
 
         # 展开/收起按钮
-        self.btn_expand = TransparentToolButton(FIF.INFO, self)
+        self.btn_expand = TransparentToolButton(FIF.CHEVRON_DOWN_MED, self)
         self.btn_expand.setToolTip("收起图表")
         self.btn_expand.clicked.connect(self._toggle_chart)
 
@@ -126,6 +134,8 @@ class InteractiveChartCard(CardWidget):
         # self.web_view.page().setBackgroundColor(Qt.transparent)
         # self.web_view.setStyleSheet("background-color: #f9f9f9;")
 
+        self.web_view.setObjectName("web_view")
+
         if os.path.exists(self.html_path):
             self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.html_path)))
 
@@ -137,7 +147,7 @@ class InteractiveChartCard(CardWidget):
         """控制图表渲染区的展开与收起"""
         self.is_expanded = not self.is_expanded
         self.web_view.setVisible(self.is_expanded)
-        icon = FIF.CHEVRON_UP if self.is_expanded else FIF.CHEVRON_DOWN
+        icon = FIF.REMOVE if self.is_expanded else FIF.CHEVRON_DOWN_MED
         self.btn_expand.setIcon(icon)
         self.btn_expand.setToolTip("收起图表" if self.is_expanded else "展开图表")
 

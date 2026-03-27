@@ -223,6 +223,7 @@ class FMRIActivationThread(QThread):
             content = content.replace('<head>', f'<head>{css}')
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(content)
+        return
 
         '''
         # 5. 激活簇表（threshold报错）
