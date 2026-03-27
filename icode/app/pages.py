@@ -2,6 +2,7 @@
 import os
 import ast
 from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QMainWindow,QGridLayout
 )
@@ -10,7 +11,7 @@ from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
     ComboBoxSettingCard, qconfig, Theme, setTheme, InfoBar, InfoBarPosition,
     TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
-    SubtitleLabel, BodyLabel
+    SubtitleLabel, BodyLabel, OptionsSettingCard
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -21,6 +22,8 @@ from fmri_activation import FMRIActivationThread
 from fmri_connectivity import FMRIConnectivityThread
 from CustomWebEnginePage import CustomWebEngineView
 from InteractiveChartCard import InteractiveChartCard
+from app.common.config import cfg
+from app.common.style_sheet import StyleSheet
 
 class VisualizationWebWindow(QMainWindow):
     """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
@@ -49,21 +52,20 @@ class BaseFunctionPage(ScrollArea):
         super().__init__(parent=parent)
         self.module_name = module_name
         self.setObjectName(title.replace(" ", "_"))
-
         # 保留圆角与无边框，不覆盖 Fluent 的主题背景绘制
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # 移除强制样式覆盖，改用 FluentWidgets 推荐的透明化配置
         self.viewport().setObjectName("FunctionPageViewport")
-        self.viewport().setStyleSheet("background: transparent; border: none;")
+        # self.viewport().setStyleSheet("background: transparent; border: none;")
 
         self.view = QWidget(self)
         self.view.setObjectName("FunctionPageView")
-        self.view.setStyleSheet("background: transparent;")
+        # self.view.setStyleSheet("background: transparent;")
 
         # 允许通过父窗口（FluentWindow）传递主题背景
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
+        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         # 主布局
         self.main_layout = QVBoxLayout(self.view)
@@ -91,6 +93,7 @@ class BaseFunctionPage(ScrollArea):
 
         self.setWidget(self.view)
         self.worker = None # 后台工作线程引用，防止被回收
+        self.view.setObjectName('view')
 
     def _build_status_bar(self):
         # 进度状态外层布局
@@ -116,7 +119,7 @@ class BaseFunctionPage(ScrollArea):
         """统一切换底部状态：运行时显示并开启控件锁，否则关闭条幅"""
         self.status_container.setVisible(is_running)
         self.status_label.setText(msg)
-        self.view.setEnabled(not is_running) # 运行期间锁定页面除状态栏外的操作
+        self.view.setEnabled(not is_running) # 运行期间锁定页a面除状态栏外的操作
 
     def check_file_selected(self, file_path: str, ext_tuple: tuple, err_msg: str):
         if not file_path:
@@ -160,6 +163,13 @@ class BaseFunctionPage(ScrollArea):
         self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window())
         self._viz_window.show()
 
+    def _on_theme_changed(self, theme: Theme):
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新窗口
+        self.update()
+        self.repaint()
+        QApplication.processEvents()
 
 # ==========================================
 # EEG 源定位页面
@@ -210,6 +220,7 @@ class EEGSourcePage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
@@ -322,6 +333,7 @@ class EEGConnectivityPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def get_selected_duration(self):
         text = self.duration_box.currentText()
@@ -411,6 +423,7 @@ class FMRIActivationPage(BaseFunctionPage):
 
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
@@ -532,6 +545,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
 
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
@@ -578,12 +592,12 @@ class LogReportPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.viewport().setStyleSheet("background: transparent; border: none;")
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
+        # self.viewport().setStyleSheet("background: transparent; border: none;")
+        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         self.view = QWidget(self)
         self.view.setObjectName("LogReportPageView")
-        self.view.setStyleSheet("background: transparent;")
+        # self.view.setStyleSheet("background: transparent;")
         self.main_layout = QVBoxLayout(self.view)
         self.main_layout.setContentsMargins(36, 36, 36, 36)
 
@@ -621,6 +635,7 @@ class LogReportPage(ScrollArea):
 
         # 绑定核心派发器刷新UI
         log_manager.log_updated.connect(self._update_log_display)
+        StyleSheet.MAIN.apply(self)
 
     def _update_log_display(self):
         mod = self.combo_filter.currentText()
@@ -655,12 +670,12 @@ class SettingsPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.viewport().setStyleSheet("background: transparent; border: none;")
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
+        # self.viewport().setStyleSheet("background: transparent; border: none;")
+        # self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         self.view = QWidget(self)
         self.view.setObjectName("SettingsPageView")
-        self.view.setStyleSheet("background: transparent;")
+        # self.view.setStyleSheet("background: transparent;")
         self.expand_layout = ExpandLayout(self.view)
         self.expand_layout.setContentsMargins(36, 36, 36, 36)
 
@@ -674,16 +689,16 @@ class SettingsPage(ScrollArea):
         self.personal_group = SettingCardGroup("界面与主题", self.view)
 
         # 主题模式：必须调用 setTheme 才会刷新 Fluent 背景与控件样式
-        self.theme_card = ComboBoxSettingCard(
-            configItem=qconfig.themeMode,
-            icon=FIF.BRUSH,
-            title="应用主题",
-            content="更改应用的外观并重新映射内部颜色",
-            texts=["浅色", "深色", "跟随系统"],
+        self.theme_card = OptionsSettingCard(
+            cfg.themeMode,
+            FIF.BRUSH,
+            self.tr("应用主题"),
+            self.tr("更改应用的外观并重新映射内部颜色"),
+            texts=[
+                self.tr("浅色"), self.tr("深色"),
+                self.tr("跟随系统")
+            ],
             parent=self.personal_group
-        )
-        self.theme_card.comboBox.currentIndexChanged.connect(
-            lambda i: self._on_theme_changed(i)
         )
 
         from qfluentwidgets import ColorSettingCard
@@ -698,11 +713,23 @@ class SettingsPage(ScrollArea):
         self.personal_group.addSettingCard(self.theme_card)
         self.personal_group.addSettingCard(self.color_card)
 
+        # ensure theme changes actually update qfluentwidgets styles
+        cfg.themeChanged.connect(setTheme)
+        # propagate color selection to fluent theme color
+        self.color_card.colorChanged.connect(lambda c: setThemeColor(c))
+
         self.expand_layout.addWidget(self.personal_group)
         self.setWidget(self.view)
+        StyleSheet.MAIN.apply(self)
 
-    def _on_theme_changed(self, index: int):
-        theme = [Theme.LIGHT, Theme.DARK, Theme.AUTO][index]
-        setTheme(theme, save=True, lazy=False)
-        # qconfig.themeChanged 信号会触发 main.py 中的刷新，但我们这里也可以手动更新样式
-        # FluentStyleSheet.apply(self.window())
+    def _on_theme_changed(self, theme):
+        # theme = [Theme.LIGHT, Theme.DARK, Theme.AUTO][index]
+        # setTheme(theme, save=True, lazy=False)
+        # # qconfig.themeChanged 信号会触发 main.py 中的刷新，但我们这里也可以手动更新样式
+        # # FluentStyleSheet.apply(self.window())
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新窗口
+        self.update()
+        self.repaint()
+        QApplication.processEvents()

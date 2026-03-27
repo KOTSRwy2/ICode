@@ -8,6 +8,7 @@ from qfluentwidgets import (
     CardWidget, SubtitleLabel, CaptionLabel, TransparentToolButton,
     FluentIcon as FIF, BodyLabel, InfoBar, InfoBarPosition, IconWidget, Flyout, FlyoutAnimationType
 )
+from app.common.style_sheet import StyleSheet
 
 class ClickableInfoWidget(QWidget):
     """自定义带 'i' 图标的可悬浮说明小字区域"""
@@ -79,6 +80,8 @@ class InteractiveChartCard(CardWidget):
 
         self._init_ui()
 
+        StyleSheet.INTERACTIVE_CHART_CARD.apply(self)
+
     def _init_ui(self):
         # 整体竖向布局
         self.v_layout = QVBoxLayout(self)
@@ -120,7 +123,8 @@ class InteractiveChartCard(CardWidget):
         self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         # self.web_view.page().setBackgroundColor(Qt.transparent)
-        self.web_view.setStyleSheet("background-color: #f9f9f9;")
+        # self.web_view.page().setBackgroundColor(Qt.transparent)
+        # self.web_view.setStyleSheet("background-color: #f9f9f9;")
 
         if os.path.exists(self.html_path):
             self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.html_path)))

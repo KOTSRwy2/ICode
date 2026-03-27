@@ -1,0 +1,140 @@
+QMainWindow,
+FluentWindow {
+    background-color: rgb(32, 32, 32);
+}
+
+TitleBar {
+    background-color: rgb(32, 32, 32);
+}
+
+TitleBar #titleLabel {
+    color: white;
+}
+
+NavigationInterface,
+#navigationView {
+    background-color: rgb(32, 32, 32);
+    border-right: 1px solid rgb(56, 56, 56);
+}
+
+/* 页面容器 - 使用透明背景 */
+#view {
+    background-color: transparent;
+}
+
+#viewport{background: transparent; border: none;}
+
+/* ScrollArea 视口 */
+ScrollArea#FunctionPageViewport {
+    background-color: transparent;
+    border: none;
+}
+
+/* 页面内容视图 */
+QWidget#FunctionPageView {
+    background-color: transparent;
+}
+
+/* 状态容器 - 深色主题下的背景色 */
+QWidget#status_container {
+    background-color: rgb(56, 56, 56);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+/* 日志页面 */
+ScrollArea#LogReportPageView {
+    background-color: transparent;
+}
+
+/* 设置页面 */
+#LogReportPageView, #SettingsPageView, ScrollArea#SettingsPageView {
+    background-color: transparent;
+}
+
+ScrollArea { background: transparent; border: none; }
+
+#FunctionPageViewport{
+    background: transparent; border: none;
+}
+
+#FunctionPageView{
+    background: transparent;
+}
+
+/* app/qss/dark/main.qss */
+QMainWindow, FluentWindow {
+    background-color: rgb(32, 32, 32);
+}
+
+TitleBar {
+    background-color: rgb(32, 32, 32);
+}
+
+TitleBar #titleLabel {
+    color: rgb(255, 255, 255);
+}
+
+NavigationInterface, #navigationView {
+    background-color: rgb(39, 39, 39);
+    border-right: 1px solid rgb(56, 56, 56);
+}
+
+NavigationInterface QLabel, #navigationView QLabel {
+    color: rgb(200, 200, 200);
+}
+
+NavigationInterface QLabel:selected, #navigationView QLabel:selected {
+    color: rgb(22, 119, 255);
+}
+
+#view {
+    background-color: transparent;
+}
+
+#viewport {
+    background: transparent;
+    border: none;
+}
+
+ScrollArea#FunctionPageViewport {
+    background-color: transparent;
+    border: none;
+}
+
+QWidget#FunctionPageView {
+    background-color: transparent;
+}
+
+SubtitleLabel {
+    color: rgb(255, 255, 255);
+    font-weight: bold;
+}
+
+BodyLabel, QLabel {
+    color: rgb(200, 200, 200);
+}
+
+QWidget#status_container {
+    background-color: rgb(45, 45, 45);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+ScrollArea#LogReportPageView {
+    background-color: transparent;
+}
+
+ScrollArea#SettingsPageView {
+    background-color: transparent;
+}
+
+QLineEdit, ComboBox, QComboBox {
+    color: rgb(255, 255, 255);
+    background-color: rgb(45, 45, 45);
+    border: 1px solid rgb(60, 60, 60);
+}
+
+PushButton, ToolButton {
+    color: rgb(255, 255, 255);
+}
