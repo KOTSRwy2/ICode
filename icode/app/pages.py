@@ -16,8 +16,8 @@ from qfluentwidgets import (
 from qfluentwidgets import FluentIcon as FIF
 
 from .core import log_manager, WorkerThread, FMRIWorkerThread, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
-from source_localization import run_source_localization
-from connectivity_visualization import run_connectivity_visualization
+from source_localization import compute_source_localization,show_source_localization_window
+from connectivity_visualization import compute_connectivity_data, render_connectivity_html
 from fmri_activation import FMRIActivationThread
 from fmri_connectivity import FMRIConnectivityThread
 from CustomWebEnginePage import CustomWebEngineView
@@ -234,44 +234,78 @@ class EEGSourcePage(BaseFunctionPage):
         }
         return mapping[text]
 
+    def _update_source_log(self, msg):
+        self.status_label.setText(f"目前步骤: {msg}")
+        log_manager.add_log(msg, self.module_name)
+
     def _run_task(self):
         if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
             return
 
+        # 防止重复点击
+        if self.worker is not None and self.worker.isRunning():
+            InfoBar.warning(
+                title="提示",
+                content="EEG源定位任务正在运行中，请稍候。",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=2500,
+                parent=self.window()
+            )
+            return
+
         duration_sec = self.get_selected_duration()
         analysis_band = self.get_selected_band()
+        plot_theme = "auto"
 
         self.set_running_state(True, "初始化读取EEG数据...")
         log_manager.add_log("开始运行 EEG 源定位...", self.module_name)
-        log_manager.add_log(f"当前选择的分析频道：{self.band_box.currentText()}")
+        log_manager.add_log(f"当前选择的分析频道：{self.band_box.currentText()}", self.module_name)
 
-        def update_log(msg):
-            self.status_label.setText(f"目前步骤: {msg}")
-            log_manager.add_log(msg, self.module_name)
-            QApplication.processEvents()
+        # 用你们 core.py 里现成的 WorkerThread，把重计算放到后台
+        self.worker = WorkerThread(
+            compute_source_localization,
+            self.bdf_path,
+            duration_sec=duration_sec,
+            analysis_band=analysis_band,
+            plot_theme=plot_theme
+        )
 
-        QApplication.processEvents()
-        try:
-            plot_theme = "auto"
-            run_source_localization(
-                self.bdf_path,
-                logger=update_log,
-                duration_sec=duration_sec,
-                analysis_band=analysis_band,
-                plot_theme=plot_theme
-            )
-            self._on_task_finished(True, "ok")
-        except Exception as e:
-            self._on_task_finished(False, str(e))
+        self.worker.log_sig.connect(self._update_source_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
 
-    def _on_task_finished(self, success, msg):
-        self.set_running_state(False, "执行完成" if success else "执行失败")
+    def _on_task_finished(self, success, result):
+        # 先把线程对象释放掉
+        if self.worker is not None:
+            self.worker.deleteLater()
+            self.worker = None
+
         if success:
-            log_manager.add_log("EEG 源定位运行成功完成", self.module_name)
-            self.show_success_dialog("操作成功", "EEG源定位已完成，弹出并渲染3D窗口。")
+            try:
+                # 这里已经回到主线程了，可以安全弹 MNE 3D 窗口
+                self.status_label.setText("目前步骤: 正在打开 3D 窗口...")
+                log_manager.add_log("EEG 源定位后台计算完成，正在打开 3D 窗口...", self.module_name)
+
+                def ui_log(msg):
+                    self.status_label.setText(f"目前步骤: {msg}")
+                    log_manager.add_log(msg, self.module_name)
+
+                show_source_localization_window(result, logger=ui_log)
+
+                self.set_running_state(False, "执行完成")
+                log_manager.add_log("EEG 源定位运行成功完成", self.module_name)
+                self.show_success_dialog("操作成功", "EEG源定位已完成，已弹出并渲染3D窗口。")
+
+            except Exception as e:
+                self.set_running_state(False, "执行失败")
+                log_manager.add_log(f"EEG 源定位窗口显示失败: {str(e)}", self.module_name)
+                self.show_error_dialog("显示失败", f"源定位结果已计算完成，但显示3D窗口时发生错误：\n{str(e)}")
         else:
-            log_manager.add_log(f"EEG 源定位运行失败: {msg}", self.module_name)
-            self.show_error_dialog("运行失败", f"源定位过程中发生错误:\n{msg}")
+            self.set_running_state(False, "执行失败")
+            log_manager.add_log(f"EEG 源定位运行失败: {result}", self.module_name)
+            self.show_error_dialog("运行失败", f"源定位过程中发生错误：\n{result}")
 
 
 # ==========================================
@@ -339,6 +373,10 @@ class EEGConnectivityPage(BaseFunctionPage):
         }
         return mapping[text]
 
+    def _update_connectivity_log(self, msg):
+        self.status_label.setText(f"目前步骤: {msg}")
+        log_manager.add_log(msg, self.module_name)
+
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
         if file_path:
@@ -350,40 +388,63 @@ class EEGConnectivityPage(BaseFunctionPage):
         if not self.check_file_selected(self.bdf_path, (".bdf",), "请选择合法的 .bdf 格式文件。"):
             return
 
+        if self.worker is not None and self.worker.isRunning():
+            InfoBar.warning(
+                title="提示",
+                content="EEG功能连接任务正在运行中，请稍候。",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=2500,
+                parent=self.window()
+            )
+            return
+
         duration_sec = self.get_selected_duration()
         analysis_band = self.get_selected_band()
 
         self.set_running_state(True, "初始化连接分析网络...")
         log_manager.add_log("开始运行 EEG 功能连接...", self.module_name)
+        log_manager.add_log(f"当前选择的分析频道：{self.band_box.currentText()}", self.module_name)
 
-        # EEG 功能连接内部会构建 MNE/PyVista 的 3D 场景对象，放在子线程可能导致异常或卡死。
-        # 这里与旧版行为保持一致：在主线程执行，同时通过 processEvents 保持进度条刷新。
-        def update_log(msg):
-            self.status_label.setText(f"目前步骤: {msg}")
-            log_manager.add_log(msg, self.module_name)
-            QApplication.processEvents()
+        # 这里只做后台计算，不在线程里创建 Brain
+        self.worker = WorkerThread(
+            compute_connectivity_data,
+            self.bdf_path,
+            analysis_band=analysis_band,
+            duration_sec=duration_sec
+        )
 
-        QApplication.processEvents()
+        self.worker.log_sig.connect(self._update_connectivity_log)
+        self.worker.finished_sig.connect(self._on_task_finished)
+        self.worker.start()
+
+    def _on_task_finished(self, success, result):
+        if self.worker is not None:
+            self.worker.deleteLater()
+            self.worker = None
+
+        if not success:
+            self.set_running_state(False, "执行失败")
+            log_manager.add_log(f"分析失败: {result}", self.module_name)
+            self.show_error_dialog("分析失败", f"功能连接分析过程中发生错误：\n{result}")
+            return
+
         try:
-            out_path = run_connectivity_visualization(
-                self.bdf_path,
-                logger=update_log,
-                analysis_band=analysis_band,
-                duration_sec=duration_sec
-            )
-            self._on_task_finished(True, out_path)
-        except Exception as e:
-            self._on_task_finished(False, str(e))
+            self.status_label.setText("目前步骤: 后台计算完成，正在主线程生成 3D 场景并导出 HTML...")
+            log_manager.add_log("后台计算完成，开始在主线程生成 3D 场景并导出 HTML...", self.module_name)
 
-    def _on_task_finished(self, success, out_path):
-        self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
+            out_path = render_connectivity_html(result, logger=self._update_connectivity_log)
+
+            self.set_running_state(False, "执行完成")
             log_manager.add_log(f"功能连接导出成功: {out_path}", self.module_name)
-            self.show_success_dialog("任务完成", f"结果已保存并尝试打开:\n{out_path}")
+            self.show_success_dialog("任务完成", f"结果已保存并生成 HTML：\n{out_path}")
             self.show_html_in_subwindow(out_path, "EEG 功能连接可视化")
-        else:
-            log_manager.add_log(f"分析失败: {out_path}", self.module_name)
-            self.show_error_dialog("分析失败", f"发生了未知错误:\n{out_path}")
+
+        except Exception as e:
+            self.set_running_state(False, "执行失败")
+            log_manager.add_log(f"功能连接渲染失败: {str(e)}", self.module_name)
+            self.show_error_dialog("渲染失败", f"后台计算已完成，但生成 3D/导出 HTML 时出错：\n{str(e)}")
 
 
 # ==========================================
