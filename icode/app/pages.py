@@ -694,7 +694,7 @@ class SettingsPage(ScrollArea):
 
         from qfluentwidgets import ColorSettingCard
         self.color_card = ColorSettingCard(
-            qconfig.themeColor,
+            cfg.themeColor,
             icon=FIF.PALETTE,
             title="主题色",
             content="自定义状态与高亮的指向色",

@@ -66,15 +66,15 @@ class EEGFMRIFluentApp(FluentWindow):
         self.themeListener.start()
 
         self._on_theme_changed(cfg.theme)
+        print(cfg.themeColor)
         StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):
         self.resize(1100, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
-        
-        # 设置默认亮色主题以符合科学计算普遍交互观感
-        setTheme(Theme.AUTO, save=True)
-        setThemeColor("#1677ff") # 默认选用医学蓝
+
+        # setThemeColor("#1677ff")
+        setThemeColor(cfg.themeColor.value)
 
         self.setMicaEffectEnabled(True)
         

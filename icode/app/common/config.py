@@ -18,3 +18,6 @@ class Config(QConfig):
 cfg = Config()
 cfg.themeMode.value = Theme.AUTO
 qconfig.load('app/config/config.json', cfg)
+# ensure qconfig refers to the loaded Config's items so setTheme/setThemeColor affect the correct items
+qconfig.themeMode = cfg.themeMode
+qconfig.themeColor = cfg.themeColor
