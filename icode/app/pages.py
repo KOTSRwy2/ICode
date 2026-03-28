@@ -418,18 +418,34 @@ class FMRIActivationPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
 
-        test_card = InteractiveChartCard(
-            title="阈值-激活体素数曲线",
-            description="点击查看统计学释义",
-            html_path=r"E:\web\ICode_\ICode\icode\outputs\fMRI\CovRegressed_4DVolume_curve.html",
-            detail_text="【详细说明】该曲线展示了在不同统计阈值下，\n全脑被识别为“激活”的体素数量变化趋势。\n通常用于辅助寻找信噪比最佳的截断点。\nX轴为强度阈值，Y轴为有效体素数量。",
-            chart_name = "阈值-激活体素数曲线",
-            image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
-            tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
-            enable_animation=True,
-        )
-
-        self.content_layout.addWidget(test_card)
+        # test_card = InteractiveChartCard(
+        #         title="阈值-激活体素数曲线",
+        #         description="随着统计阈值提高，被判定为“激活”的脑体素数量如何变化，用于选择合适阈值。点击查看更多信息：",
+        #         html_path=r"E:\web\ICode_\ICode\icode\outputs\fMRI\Filtered_4DVolume_curve.html",
+        #         detail_text="""该曲线展示了在不同统计阈值（threshold）下，被判定为“激活”的脑体素（voxel）数量变化趋势。
+        #         在 fMRI 分析中，每一个体素都会被赋予一个统计值（例如 z-score 或 t-value），表示该位置在任务中是否显著激活。通过设置不同的阈值，可以筛选出不同程度显著的脑区。
+        #         📊 如何理解这条曲线：
+        #         - 横轴（X轴）：统计阈值（越大表示筛选越严格）
+        #         - 纵轴（Y轴）：激活体素数量（被认为“显著激活”的脑区域大小）
+        #
+        #         📉 曲线特点：
+        #         - 阈值较低 → 激活体素多（但可能包含噪声）
+        #         - 阈值较高 → 激活体素少（但更可靠）
+        #
+        #         🎯 该图的作用：
+        #         1. 帮助选择合理的统计阈值（避免过多噪声或过度严格）
+        #         2. 观察结果对阈值变化的敏感性（稳定性分析）
+        #         3. 辅助解释脑区激活范围变化
+        #
+        #         💡 一般经验：
+        #         研究中常结合该曲线与统计学方法（如 FDR / Bonferroni 校正）来确定最终阈值，而不是仅凭单一点。""",
+        #         chart_name = "阈值-激活体素数曲线",
+        #         image_url = r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
+        #         tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
+        #         enable_animation=True,
+        #     )
+        #
+        # self.content_layout.addWidget(test_card)
 
         StyleSheet.MAIN.apply(self)
 
@@ -485,12 +501,28 @@ class FMRIActivationPage(BaseFunctionPage):
             # 挂载卡片 1：曲线图
             card1 = InteractiveChartCard(
                 title="阈值-激活体素数曲线",
-                description="点击查看统计学释义",
+                description="随着统计阈值提高，被判定为“激活”的脑体素数量如何变化，用于选择合适阈值。点击查看更多信息：",
                 html_path=result_data.get('curve', ''),
-                detail_text="【详细说明】该曲线展示了在不同统计阈值下，全脑被识别为“激活”的体素数量变化趋势。通常用于辅助寻找信噪比最佳的截断点。X轴为强度阈值，Y轴为有效体素数量。",
+                detail_text="""该曲线展示了在不同统计阈值（threshold）下，被判定为“激活”的脑体素（voxel）数量变化趋势。
+                在 fMRI 分析中，每一个体素都会被赋予一个统计值（例如 z-score 或 t-value），表示该位置在任务中是否显著激活。通过设置不同的阈值，可以筛选出不同程度显著的脑区。
+                📊 如何理解这条曲线：
+                - 横轴（X轴）：统计阈值（越大表示筛选越严格）
+                - 纵轴（Y轴）：激活体素数量（被认为“显著激活”的脑区域大小）
+                
+                📉 曲线特点：
+                - 阈值较低 → 激活体素多（但可能包含噪声）
+                - 阈值较高 → 激活体素少（但更可靠）
+                
+                🎯 该图的作用：
+                1. 帮助选择合理的统计阈值（避免过多噪声或过度严格）
+                2. 观察结果对阈值变化的敏感性（稳定性分析）
+                3. 辅助解释脑区激活范围变化
+                
+                💡 一般经验：
+                研究中常结合该曲线与统计学方法（如 FDR / Bonferroni 校正）来确定最终阈值，而不是仅凭单一点。""",
                 chart_name = "阈值-激活体素数曲线",
-                image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
-                tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                image_url = r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
+                tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                 enable_animation=True,
             )
             card1.web_view.setFixedHeight(500)
@@ -503,7 +535,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 chart_name = "阈值-激活体素数曲线",
                 image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
                 tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
-
+                enable_animation=False,
             )
             card2.web_view.setFixedHeight(500)
             # 挂载卡片 3：交互切片脑图

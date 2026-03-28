@@ -131,28 +131,7 @@ class FMRIActivationThread(QThread):
         data = data[data > 0]
         threshold_95 = np.percentile(data, 95)
 
-        # # 2. 阈值-体素数曲线
-        # self.log_pyqtSignal.emit("生成阈值-体素数曲线...")
-        # thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
-        # counts = [np.sum(data > t) for t in thresholds]
-        # fig1 = go.Figure()
-        # fig1.add_trace(go.Scatter(
-        #     x=thresholds, y=counts, mode='lines+markers',
-        #     name='体素数', line=dict(color='#1677ff', width=3),
-        #     marker=dict(size=8, symbol='circle')
-        # ))
-        # # 关键配置：设置透明背景与现代字体，适配 Fluent UI
-        # fig1.update_layout(
-        #     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        #     margin=dict(l=40, r=40, t=20, b=40),
-        #     xaxis=dict(title='激活阈值', gridcolor='rgba(128,128,128,0.2)'),
-        #     yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
-        #     font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
-        # )
-        # path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
-        # fig1.write_html(path1, include_plotlyjs=True, full_html=True)
-        # self._inject_fluent_css(path1)
-        # results_paths['curve'] = path1
+        # 2. 阈值-体素数曲线
         self.log_pyqtSignal.emit("生成阈值 - 体素数曲线...")
         thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
         counts = [np.sum(data > t) for t in thresholds]
@@ -181,17 +160,16 @@ class FMRIActivationThread(QThread):
                 line=dict(color='#1677ff', width=3),
                 marker=dict(size=8, symbol='circle')
             )],
-            frames=frames  # 添加帧
+            frames=frames
         )
 
-        # ===== 修改：添加自动播放配置 =====
         fig1.update_layout(
             updatemenus=[{
                 'type': 'buttons',
                 'showactive': False,
                 'x': 0.0, 'y': 0, 'xanchor': 'center',
                 'buttons': [{
-            'label': 'Play',  # ← 关键：添加标签文字
+            'label': 'Play',
             'method': 'animate',
             'args': [None, {
                 'frame': {'duration': 150, 'redraw': True},
@@ -257,7 +235,6 @@ class FMRIActivationThread(QThread):
         })
 
         results_paths['histogram'] = path2
-
 
         ####### 4. 三正交切片图（强制显示最强激活点！）（切的点太怪了感觉不对，如果可以直接在前端交互窗口加个截图功能？）
         self.log_pyqtSignal.emit("生成交互式三正交切片视图...")

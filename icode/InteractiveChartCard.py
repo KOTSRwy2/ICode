@@ -31,7 +31,7 @@ class ClickableInfoWidget(QWidget):
 
         layout.addWidget(self.icon)
         layout.addWidget(self.label)
-        layout.addStretch(1)
+        # layout.addStretch(1)
 
         self.setCursor(Qt.PointingHandCursor)
         self.installEventFilter(self)
@@ -50,6 +50,14 @@ class ClickableInfoWidget(QWidget):
             isClosable=True
         )
 
+        view.contentLabel.setWordWrap(True)
+        view.contentLabel.setFixedWidth(600)
+
+        if self.image_url:
+            view.imageLabel.setFixedWidth(400)
+            view.imageLabel.setFixedHeight(200)
+            view.imageLabel.setScaledContents(True)
+
         if self.tutorial_url != "":
             button = PrimaryPushButton(self.tr('教程'), self, FluentIcon.BOOK_SHELF)
             button.setMinimumWidth(120)
@@ -57,14 +65,17 @@ class ClickableInfoWidget(QWidget):
             button.clicked.connect(lambda : QDesktopServices.openUrl(QUrl(self.tutorial_url)))
 
         # adjust layout (optional)
-        view.widgetLayout.insertSpacing(1, 10)
-        view.widgetLayout.addSpacing(5)
+        # view.widgetLayout.insertSpacing(1, 10)
+        # view.widgetLayout.addSpacing(5)
+
+        view.viewLayout.setContentsMargins(10, 3, 10, 3)
         view.setObjectName("FlyoutView")
         # show view
         w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.DROP_DOWN)
         view.closed.connect(w.close)
         StyleSheet.INTERACTIVE_CHART_CARD.apply(view)
-            
+
+
     def _on_flyout_closed(self):
         self._flyout_shown = False
 
@@ -86,7 +97,7 @@ class InteractiveChartCard(CardWidget):
         self.image_url = image_url
         self.tutorial_url = tutorial_url
         self.enable_animation = enable_animation
-        self.is_expanded = True  # 初始状态设为展开
+        self.is_expanded = True
 
         self._init_ui()
 
@@ -143,16 +154,8 @@ class InteractiveChartCard(CardWidget):
             self.header_layout.addWidget(self.btn_pause, 0, Qt.AlignTop)
             self.header_layout.addWidget(self.btn_replay, 0, Qt.AlignTop)
 
-            # self.animation_control_layout.addWidget(self.btn_play)
-            # self.animation_control_layout.addWidget(self.btn_pause)
-            # self.animation_control_layout.addWidget(self.btn_replay)
-            # self.animation_control_layout.addStretch(1)
-
         self.header_layout.addWidget(self.btn_export, 0, Qt.AlignTop)
         self.header_layout.addWidget(self.btn_expand, 0, Qt.AlignTop)
-
-        # self.animation_control_layout = QHBoxLayout()
-        # self.animation_control_layout.setSpacing(8)
 
         # === 2. Web 渲染区 (Content) ===
         self.web_view = CustomWebEngineView(self)
