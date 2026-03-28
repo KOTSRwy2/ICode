@@ -1,27 +1,30 @@
 import os
 import shutil
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal, QEvent
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QDesktopServices
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QFileDialog, QWidget, QSizePolicy
 from CustomWebEnginePage import CustomWebEngineView
 from qfluentwidgets import (
     CardWidget, SubtitleLabel, CaptionLabel, TransparentToolButton,
     FluentIcon as FIF, BodyLabel, InfoBar, InfoBarPosition, IconWidget, Flyout, FlyoutAnimationType, PushButton,
-    FlyoutView
+    FlyoutView, FluentIcon, PrimaryPushButton
 )
 from app.common.style_sheet import StyleSheet
 
 class ClickableInfoWidget(QWidget):
-    def __init__(self, text, detail_text, parent=None):
+    def __init__(self, text, detail_text, chart_name ,tutorial_url="", image_url = "",parent=None):
         super().__init__(parent)
         self.detail_text = detail_text
+        self.chart_name = chart_name
+        self.image_url = image_url
+        self.tutorial_url = tutorial_url
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
         # 'i' 图标 (Info)
         self.icon = IconWidget(FIF.INFO, self)
-        self.icon.setFixedSize(14, 14)
+        self.icon.setFixedSize(16, 16)
 
         # 说明文字，使用 Fluent 的弱化标签
         self.label = CaptionLabel(text, self)
@@ -33,12 +36,6 @@ class ClickableInfoWidget(QWidget):
         self.setCursor(Qt.PointingHandCursor)
         self.installEventFilter(self)
 
-    def eventFilter(self, obj, event):
-        if obj is self:
-            if event.type() == QEvent.Enter:
-                self._show_explanation_flyout()
-        return super().eventFilter(obj, event)
-
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._show_explanation_flyout()
@@ -47,29 +44,30 @@ class ClickableInfoWidget(QWidget):
     def _show_explanation_flyout(self):
         """鼠标悬浮或点击时，平滑弹出气泡卡片展示详细释义"""
         view = FlyoutView(
-            title='杰洛·齐贝林',
-            content="触网而起的网球会落到哪一侧，谁也无法知晓。\n如果那种时刻到来，我希望「女神」是存在的。\n这样的话，不管网球落到哪一边，我都会坦然接受的吧。",
-            image='resource/SBR.jpg',
+            title=self.chart_name,
+            content=self.detail_text,
+            image=self.image_url,
             isClosable=True
-            # image='resource/yiku.gif',
         )
 
-        # add button to view
-        button = PushButton('Action')
-        button.setFixedWidth(120)
-        view.addWidget(button, align=Qt.AlignRight)
+        if self.tutorial_url != "":
+            button = PrimaryPushButton(self.tr('教程'), self, FluentIcon.BOOK_SHELF)
+            button.setMinimumWidth(120)
+            view.addWidget(button, align=Qt.AlignRight)
+            button.clicked.connect(lambda : QDesktopServices.openUrl(QUrl(self.tutorial_url)))
 
         # adjust layout (optional)
-        view.widgetLayout.insertSpacing(1, 5)
+        view.widgetLayout.insertSpacing(1, 10)
         view.widgetLayout.addSpacing(5)
-        view.setObjectName("layout")
+        view.setObjectName("FlyoutView")
         # show view
-        w = Flyout.make(view, self, self)
+        w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.DROP_DOWN)
         view.closed.connect(w.close)
         StyleSheet.INTERACTIVE_CHART_CARD.apply(view)
             
     def _on_flyout_closed(self):
         self._flyout_shown = False
+
 
 
 class InteractiveChartCard(CardWidget):
@@ -78,12 +76,15 @@ class InteractiveChartCard(CardWidget):
     具备：自适应主题、一行一图、卡片内容展开/收起、悬浮提示说明、右上角下载
     """
 
-    def __init__(self, title: str, description: str, html_path: str, detail_text: str, parent=None):
+    def __init__(self, title: str, description: str, html_path: str, detail_text: str,chart_name:str ,tutorial_url="", image_url = "", parent=None):
         super().__init__(parent)
         self.title = title
         self.description = description
         self.html_path = html_path
         self.detail_text = detail_text
+        self.chart_name = chart_name
+        self.image_url = image_url
+        self.tutorial_url = tutorial_url
         self.is_expanded = True  # 初始状态设为展开
 
         self._init_ui()
@@ -105,7 +106,7 @@ class InteractiveChartCard(CardWidget):
         self.title_label = SubtitleLabel(self.title, self)
 
         # 带有 i 图标的可悬浮说明区
-        self.info_widget = ClickableInfoWidget(self.description, self.detail_text, self)
+        self.info_widget = ClickableInfoWidget(self.description, self.detail_text, self.chart_name,self.tutorial_url,self.image_url)
 
         self.title_layout.addWidget(self.title_label)
         self.title_layout.addWidget(self.info_widget)

@@ -113,7 +113,7 @@ class BaseFunctionPage(ScrollArea):
         """统一切换底部状态：运行时显示并开启控件锁，否则关闭条幅"""
         self.status_container.setVisible(is_running)
         self.status_label.setText(msg)
-        self.view.setEnabled(not is_running) # 运行期间锁定页a面除状态栏外的操作
+        self.view.setEnabled(not is_running) # 运行期间锁定页面除状态栏外的操作
 
     def check_file_selected(self, file_path: str, ext_tuple: tuple, err_msg: str):
         if not file_path:
@@ -417,6 +417,19 @@ class FMRIActivationPage(BaseFunctionPage):
 
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
+
+        test_card = InteractiveChartCard(
+            title="阈值-激活体素数曲线",
+            description="点击查看统计学释义",
+            html_path=r"E:\web\ICode_\ICode\icode\outputs\fMRI\CovRegressed_4DVolume_curve.html",
+            detail_text="【详细说明】该曲线展示了在不同统计阈值下，\n全脑被识别为“激活”的体素数量变化趋势。\n通常用于辅助寻找信噪比最佳的截断点。\nX轴为强度阈值，Y轴为有效体素数量。",
+            chart_name = "阈值-激活体素数曲线",
+            image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+            tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+        )
+
+        self.content_layout.addWidget(test_card)
+
         StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
@@ -449,6 +462,12 @@ class FMRIActivationPage(BaseFunctionPage):
 
         if success and result_data is not None:
             result_data = ast.literal_eval(result_data)
+
+            main = result_data["main"]
+            log_manager.add_log(f"fMRI 脑区激活定位图生成完成: {main}", self.module_name)
+            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{main}")
+            self.show_html_in_subwindow(main, "fMRI 脑区激活定位可视化")
+
             log_manager.add_log(f"fMRI 图表渲染完成，准备挂载UI", self.module_name)
             self.show_success_dialog("计算完毕", "激活分析已完成，请在下方查看交互图表。")
 

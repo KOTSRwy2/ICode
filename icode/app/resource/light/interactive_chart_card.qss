@@ -8,5 +8,14 @@ CustomWebEngineView {
 }
 
 #layout{
-    background-color: transparent;
+    font-size: 16px;
 }
+
+
+
+/* 内容字体 */
+#FlyoutView QLabel,
+#FlyoutView CaptionLabel {
+    font-weight: bold;
+}
+

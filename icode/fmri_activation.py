@@ -115,7 +115,6 @@ class FMRIActivationThread(QThread):
             f.write(html_content)
 
         if os.path.exists(html_path):
-            # webbrowser.open(f'file://{os.path.abspath(html_path)}')
             self.log_pyqtSignal.emit(f"fMRI激活HTML已生成：{html_path}")
 
         ########### ===================== 新增功能：自动输出所有图表到 outputs/fMRI =====================
@@ -123,6 +122,8 @@ class FMRIActivationThread(QThread):
 
         # 1. 读取激活数据
         results_paths = {}
+        results_paths['main'] = html_path
+
         data = fmri_mean.get_fdata()
         data = data[data > 0]
         threshold_95 = np.percentile(data, 95)
@@ -196,10 +197,6 @@ class FMRIActivationThread(QThread):
 
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths
-
-        self.log_pyqtSignal.emit("所有激活图表与统计文件已保存至输出文件夹！")
-
-        return html_path
 
     def _inject_fluent_css(self, html_path):
         if not os.path.exists(html_path):

@@ -7,6 +7,8 @@ CustomWebEngineView {
     background-color: transparent;
 }
 
-#layout{
-    background-color: transparent;
+/* 内容字体 */
+#FlyoutView QLabel,
+#FlyoutView CaptionLabel {
+    font-weight: bold;
 }
