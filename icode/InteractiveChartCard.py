@@ -31,7 +31,7 @@ class ClickableInfoWidget(QWidget):
 
         layout.addWidget(self.icon)
         layout.addWidget(self.label)
-        # layout.addStretch(1)
+        layout.addStretch(1)
 
         self.setCursor(Qt.PointingHandCursor)
         self.installEventFilter(self)
@@ -42,7 +42,10 @@ class ClickableInfoWidget(QWidget):
         super().mousePressEvent(event)
 
     def _show_explanation_flyout(self):
-        """鼠标悬浮或点击时，平滑弹出气泡卡片展示详细释义"""
+        """鼠标点击时，平滑弹出气泡卡片展示详细释义"""
+        original_title = self.chart_name
+        original_content = self.detail_text
+
         view = FlyoutView(
             title=self.chart_name,
             content=self.detail_text,
@@ -50,8 +53,14 @@ class ClickableInfoWidget(QWidget):
             isClosable=True
         )
 
+        view.titleLabel.setText(original_title)
+        view.contentLabel.setText(original_content)
+
+        view.titleLabel.setWordWrap(True)
         view.contentLabel.setWordWrap(True)
-        view.contentLabel.setFixedWidth(600)
+
+        view.titleLabel.setFixedWidth(550)
+        view.contentLabel.setFixedWidth(550)
 
         if self.image_url:
             view.imageLabel.setFixedWidth(400)
@@ -63,12 +72,14 @@ class ClickableInfoWidget(QWidget):
             button.setMinimumWidth(120)
             view.addWidget(button, align=Qt.AlignRight)
             button.clicked.connect(lambda : QDesktopServices.openUrl(QUrl(self.tutorial_url)))
+            view.widgetLayout.insertSpacing(1, 4)
 
-        # adjust layout (optional)
-        # view.widgetLayout.insertSpacing(1, 10)
-        # view.widgetLayout.addSpacing(5)
+            view.widgetLayout.setContentsMargins(0, 4, 0, 4)
 
-        view.viewLayout.setContentsMargins(10, 3, 10, 3)
+            view.viewLayout.setContentsMargins(6, 2, 6, 2)
+
+            view.vBoxLayout.setSpacing(0)
+
         view.setObjectName("FlyoutView")
         # show view
         w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.DROP_DOWN)

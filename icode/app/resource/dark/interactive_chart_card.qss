@@ -12,3 +12,22 @@ CustomWebEngineView {
 #FlyoutView CaptionLabel {
     font-weight: bold;
 }
+
+#FlyoutView QLabel#titleLabel,
+FlyoutView QLabel#titleLabel {
+    font-size: 18px;
+    font-weight: 600;
+    color: rgb(255, 255, 255);
+    margin: 0px;
+    padding: 0px;
+    margin-bottom: 2px;
+}
+
+#FlyoutView QLabel#contentLabel,
+FlyoutView QLabel#contentLabel {
+    font-size: 16px;
+    color: rgb(200, 200, 200);
+    margin: 0px;
+    padding: 0px;
+    margin-top: 2px;
+}
