@@ -426,6 +426,7 @@ class FMRIActivationPage(BaseFunctionPage):
             chart_name = "阈值-激活体素数曲线",
             image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
             tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            enable_animation=True,
         )
 
         self.content_layout.addWidget(test_card)
@@ -486,7 +487,11 @@ class FMRIActivationPage(BaseFunctionPage):
                 title="阈值-激活体素数曲线",
                 description="点击查看统计学释义",
                 html_path=result_data.get('curve', ''),
-                detail_text="【详细说明】该曲线展示了在不同统计阈值下，全脑被识别为“激活”的体素数量变化趋势。通常用于辅助寻找信噪比最佳的截断点。X轴为强度阈值，Y轴为有效体素数量。"
+                detail_text="【详细说明】该曲线展示了在不同统计阈值下，全脑被识别为“激活”的体素数量变化趋势。通常用于辅助寻找信噪比最佳的截断点。X轴为强度阈值，Y轴为有效体素数量。",
+                chart_name = "阈值-激活体素数曲线",
+                image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                enable_animation=True,
             )
             card1.web_view.setFixedHeight(500)
             # 挂载卡片 2：直方图
@@ -494,7 +499,11 @@ class FMRIActivationPage(BaseFunctionPage):
                 title="激活强度分布直方图",
                 description="点击查看频数分布释义",
                 html_path=result_data.get('histogram', ''),
-                detail_text="【详细说明】此直方图反映了全脑激活体素强度的频数分布。图中的垂直虚线代表系统为您计算的 95% 置信区间阈值，虚线右侧即为极具统计显著性的高亮激活脑区。"
+                detail_text="【详细说明】此直方图反映了全脑激活体素强度的频数分布。图中的垂直虚线代表系统为您计算的 95% 置信区间阈值，虚线右侧即为极具统计显著性的高亮激活脑区。",
+                chart_name = "阈值-激活体素数曲线",
+                image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+
             )
             card2.web_view.setFixedHeight(500)
             # 挂载卡片 3：交互切片脑图
@@ -502,7 +511,10 @@ class FMRIActivationPage(BaseFunctionPage):
                 title="三正交切片交互脑图 (最高激活点)",
                 description="点击查看 3D 视图交互操作指南",
                 html_path=result_data.get('ortho', ''),
-                detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。"
+                detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。",
+                chart_name="阈值-激活体素数曲线",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
             )
             print(result_data)
             # 赋予脑图卡片更大的高度

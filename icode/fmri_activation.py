@@ -8,6 +8,7 @@ import numpy as np
 from nilearn import plotting
 import plotly.graph_objects as go
 import json
+from PlotlyHTMLInjector import PlotlyHTMLInjector
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
 plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
@@ -39,6 +40,8 @@ class FMRIActivationThread(QThread):
         self.tr = tr
         self.mask_path = mask_path
         self.output_dir = _get_fmri_output_dir()
+
+        self.html_injector = PlotlyHTMLInjector(self.output_dir)
 
     def run(self):
         try:
@@ -128,27 +131,101 @@ class FMRIActivationThread(QThread):
         data = data[data > 0]
         threshold_95 = np.percentile(data, 95)
 
-        # 2. 阈值-体素数曲线
-        self.log_pyqtSignal.emit("生成阈值-体素数曲线...")
+        # # 2. 阈值-体素数曲线
+        # self.log_pyqtSignal.emit("生成阈值-体素数曲线...")
+        # thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
+        # counts = [np.sum(data > t) for t in thresholds]
+        # fig1 = go.Figure()
+        # fig1.add_trace(go.Scatter(
+        #     x=thresholds, y=counts, mode='lines+markers',
+        #     name='体素数', line=dict(color='#1677ff', width=3),
+        #     marker=dict(size=8, symbol='circle')
+        # ))
+        # # 关键配置：设置透明背景与现代字体，适配 Fluent UI
+        # fig1.update_layout(
+        #     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        #     margin=dict(l=40, r=40, t=20, b=40),
+        #     xaxis=dict(title='激活阈值', gridcolor='rgba(128,128,128,0.2)'),
+        #     yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
+        #     font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
+        # )
+        # path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
+        # fig1.write_html(path1, include_plotlyjs=True, full_html=True)
+        # self._inject_fluent_css(path1)
+        # results_paths['curve'] = path1
+        self.log_pyqtSignal.emit("生成阈值 - 体素数曲线...")
         thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
         counts = [np.sum(data > t) for t in thresholds]
-        fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(
-            x=thresholds, y=counts, mode='lines+markers',
-            name='体素数', line=dict(color='#1677ff', width=3),
-            marker=dict(size=8, symbol='circle')
-        ))
-        # 关键配置：设置透明背景与现代字体，适配 Fluent UI
+
+        # ===== 新增：创建帧动画 =====
+        frames = []
+        for i in range(1, len(thresholds) + 1):
+            frames.append(go.Frame(
+                data=[go.Scatter(
+                    x=thresholds[:i],
+                    y=counts[:i],
+                    mode='lines+markers',
+                    name='体素数',
+                    line=dict(color='#1677ff', width=3),
+                    marker=dict(size=8, symbol='circle')
+                )],
+                name=str(i)
+            ))
+
+        fig1 = go.Figure(
+            data=[go.Scatter(
+                x=thresholds[:1],
+                y=counts[:1],
+                mode='lines+markers',
+                name='体素数',
+                line=dict(color='#1677ff', width=3),
+                marker=dict(size=8, symbol='circle')
+            )],
+            frames=frames  # 添加帧
+        )
+
+        # ===== 修改：添加自动播放配置 =====
         fig1.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=40, r=40, t=20, b=40),
+            updatemenus=[{
+                'type': 'buttons',
+                'showactive': False,
+                'x': 0.0, 'y': 0, 'xanchor': 'center',
+                'buttons': [{
+            'label': 'Play',  # ← 关键：添加标签文字
+            'method': 'animate',
+            'args': [None, {
+                'frame': {'duration': 150, 'redraw': True},
+                'fromcurrent': True,
+                'transition': {'duration': 150, 'easing': 'linear'},
+                'mode': 'immediate'
+            }]
+        }, {
+            'label': 'Pause',
+            'method': 'animate',
+            'args': [[None], {
+                'frame': {'duration': 0, 'redraw': False},
+                'mode': 'immediate',
+                'transition': {'duration': 0}
+            }]
+        }]
+            }],
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=40, r=40, t=20, b=0),
             xaxis=dict(title='激活阈值', gridcolor='rgba(128,128,128,0.2)'),
             yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
         )
         path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
         fig1.write_html(path1, include_plotlyjs=True, full_html=True)
-        self._inject_fluent_css(path1)
+
+        self.html_injector.inject_all(path1, options={
+            'fluent_css': True,
+            'animation_control': True,
+            'debug_info': False,
+            'frame_display': False
+        })
+
         results_paths['curve'] = path1
 
         ######### 3. 激活强度直方图
@@ -171,7 +248,14 @@ class FMRIActivationThread(QThread):
         )
         path2 = os.path.join(self.output_dir, f"{base_name}_hist.html")
         fig2.write_html(path2, include_plotlyjs=True, full_html=True)
-        self._inject_fluent_css(path2)
+
+        self.html_injector.inject_all(path2, options={
+            'fluent_css': True,
+            'animation_control': False,
+            'debug_info': False,
+            'frame_display': False
+        })
+
         results_paths['histogram'] = path2
 
 
@@ -198,29 +282,6 @@ class FMRIActivationThread(QThread):
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths
 
-    def _inject_fluent_css(self, html_path):
-        if not os.path.exists(html_path):
-            return
-        with open(html_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        css = """
-            <script>
-                const originalInsertRule = CSSStyleSheet.prototype.insertRule;
-                CSSStyleSheet.prototype.insertRule = function(rule, index) {
-                    try {
-                        return originalInsertRule.call(this, rule, index);
-                    } catch (e) {
-                        console.warn("屏蔽了不兼容的 CSS 规则: ", rule);
-                        return 0;
-                    }
-                };
-            </script>
-            """
-        if '<head>' in content:
-            content = content.replace('<head>', f'<head>{css}')
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return
 
         '''
         # 5. 激活簇表（threshold报错）

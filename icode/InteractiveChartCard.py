@@ -76,7 +76,7 @@ class InteractiveChartCard(CardWidget):
     具备：自适应主题、一行一图、卡片内容展开/收起、悬浮提示说明、右上角下载
     """
 
-    def __init__(self, title: str, description: str, html_path: str, detail_text: str,chart_name:str ,tutorial_url="", image_url = "", parent=None):
+    def __init__(self, title: str, description: str, html_path: str, detail_text: str,chart_name:str ,tutorial_url="", image_url = "", parent=None,enable_animation=False):
         super().__init__(parent)
         self.title = title
         self.description = description
@@ -85,6 +85,7 @@ class InteractiveChartCard(CardWidget):
         self.chart_name = chart_name
         self.image_url = image_url
         self.tutorial_url = tutorial_url
+        self.enable_animation = enable_animation
         self.is_expanded = True  # 初始状态设为展开
 
         self._init_ui()
@@ -123,8 +124,35 @@ class InteractiveChartCard(CardWidget):
 
         self.header_layout.addLayout(self.title_layout)
         self.header_layout.addStretch(1)
+
+        if self.enable_animation:
+            # 播放按钮
+            self.btn_play = TransparentToolButton(FIF.PLAY, self)
+            self.btn_play.clicked.connect(self._play_animation)
+
+            # 暂停按钮
+            self.btn_pause = TransparentToolButton(FIF.PAUSE, self)
+            self.btn_pause.clicked.connect(self._pause_animation)
+            self.btn_pause.setEnabled(False)
+
+            # 重播按钮
+            self.btn_replay = TransparentToolButton(FIF.UPDATE, self)
+            self.btn_replay.clicked.connect(self._replay_animation)
+
+            self.header_layout.addWidget(self.btn_play, 0, Qt.AlignTop)
+            self.header_layout.addWidget(self.btn_pause, 0, Qt.AlignTop)
+            self.header_layout.addWidget(self.btn_replay, 0, Qt.AlignTop)
+
+            # self.animation_control_layout.addWidget(self.btn_play)
+            # self.animation_control_layout.addWidget(self.btn_pause)
+            # self.animation_control_layout.addWidget(self.btn_replay)
+            # self.animation_control_layout.addStretch(1)
+
         self.header_layout.addWidget(self.btn_export, 0, Qt.AlignTop)
         self.header_layout.addWidget(self.btn_expand, 0, Qt.AlignTop)
+
+        # self.animation_control_layout = QHBoxLayout()
+        # self.animation_control_layout.setSpacing(8)
 
         # === 2. Web 渲染区 (Content) ===
         self.web_view = CustomWebEngineView(self)
@@ -143,6 +171,8 @@ class InteractiveChartCard(CardWidget):
         # 组装总体布局
         self.v_layout.addLayout(self.header_layout)
         self.v_layout.addWidget(self.web_view)
+
+
 
     def _toggle_chart(self):
         """控制图表渲染区的展开与收起"""
@@ -165,3 +195,45 @@ class InteractiveChartCard(CardWidget):
                                 position=InfoBarPosition.BOTTOM_RIGHT)
             except Exception as e:
                 InfoBar.error("导出失败", str(e), parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
+
+    # ===== 新增：动画控制方法 =====
+    def _play_animation(self):
+        """播放动画"""
+        js_code = """
+        (function() {
+            console.log('[PyQt] 播放按钮被点击');
+            if (window.PlotlyAnimationControl) {
+                window.PlotlyAnimationControl.play();
+            } else {
+                console.error('[PyQt] PlotlyAnimationControl 未初始化');
+            }
+        })();
+        """
+        self.web_view.page().runJavaScript(js_code)
+        self.btn_play.setEnabled(False)
+        self.btn_pause.setEnabled(True)
+        self.is_playing = True
+
+    def _pause_animation(self):
+        """暂停动画"""
+        js_code = """
+        (function() {
+            console.log('[PyQt] 暂停按钮被点击');
+            if (window.PlotlyAnimationControl) {
+                window.PlotlyAnimationControl.pause();
+            } else {
+                console.error('[PyQt] PlotlyAnimationControl 未初始化');
+            }
+        })();
+        """
+        self.web_view.page().runJavaScript(js_code)
+        self.btn_play.setEnabled(True)
+        self.btn_pause.setEnabled(False)
+        self.is_playing = False
+
+    def _replay_animation(self):
+        """重新加载页面"""
+        self.web_view.reload()
+        self.btn_play.setEnabled(False)
+        self.btn_pause.setEnabled(True)
+        self.is_playing = True
