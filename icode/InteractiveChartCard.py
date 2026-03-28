@@ -82,7 +82,7 @@ class ClickableInfoWidget(QWidget):
 
         view.setObjectName("FlyoutView")
         # show view
-        w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.DROP_DOWN)
+        w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.SLIDE_LEFT)
         view.closed.connect(w.close)
         StyleSheet.INTERACTIVE_CHART_CARD.apply(view)
 

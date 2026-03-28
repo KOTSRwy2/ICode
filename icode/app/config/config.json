@@ -8,6 +8,6 @@
     },
     "MainWindow": {
         "ThemeColor": "#ff2848ff",
-        "ThemeMode": "Light"
+        "ThemeMode": "Dark"
     }
 }

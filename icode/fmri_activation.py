@@ -1,6 +1,6 @@
 import os
 import nibabel as nib
-from nilearn import plotting, image, masking
+from nilearn import plotting, image, masking, reporting
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from nilearn import plotting
 import plotly.graph_objects as go
 import json
 from PlotlyHTMLInjector import PlotlyHTMLInjector
+from qfluentwidgets import isDarkTheme
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
 plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
@@ -88,9 +89,10 @@ class FMRIActivationThread(QThread):
         html_path = os.path.join(self.output_dir, f"{base_name}_activation.html")
 
         # ========== 关键：生成自带阈值滑块的 HTML ==========
+        threshold = np.percentile(np.abs(fmri_mean.get_fdata()[fmri_mean.get_fdata() != 0]), 90)
         view = plotting.view_img(
             fmri_mean, bg_img=mni_template,
-            threshold=1.5,
+            threshold=threshold,
             title="fMRI Activation Map",
             cmap="RdYlBu_r",
             black_bg=True,
@@ -129,11 +131,11 @@ class FMRIActivationThread(QThread):
 
         data = fmri_mean.get_fdata()
         data = data[data > 0]
-        threshold_95 = np.percentile(data, 95)
+        threshold_90 = np.percentile(data, 90)
 
         # 2. 阈值-体素数曲线
         self.log_pyqtSignal.emit("生成阈值 - 体素数曲线...")
-        thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 99), 20)
+        thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 90), 20)
         counts = [np.sum(data > t) for t in thresholds]
 
         # ===== 新增：创建帧动画 =====
@@ -214,9 +216,9 @@ class FMRIActivationThread(QThread):
             marker_color='rgba(0, 255, 255, 0.6)',  # 保留青色特征，增加透明度
             marker_line_color='black', marker_line_width=1, name="体素数量"
         ))
-        # 添加 95% 阈值辅助线 (原版红色虚线)
-        fig2.add_vline(x=threshold_95, line_width=2, line_dash="dash", line_color="red",
-                       annotation_text="95% 阈值", annotation_position="top right")
+        # 添加 90% 阈值辅助线 (原版红色虚线)
+        fig2.add_vline(x=threshold_90, line_width=2, line_dash="dash", line_color="red",
+                       annotation_text="90% 阈值", annotation_position="top right")
         fig2.update_layout(
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=40, r=40, t=20, b=40),
@@ -246,35 +248,37 @@ class FMRIActivationThread(QThread):
         path3 = os.path.join(self.output_dir, f"{base_name}_ortho.html")
         view = plotting.view_img(
             fmri_mean, bg_img=mni_template,
-            threshold=threshold_95,  # 使用计算出的 95% 阈值
+            threshold=threshold_90,  # 使用计算出的 90% 阈值
             title="Interactive fMRI Ortho Viewer",
             cmap="RdYlBu_r",
-            cut_coords=peak_coords,  # 强制切入最强点
-            black_bg=False  # 关闭纯黑背景，以便和应用主题融合
+            cut_coords=peak_coords,
+            black_bg=False
         )
         view.save_as_html(path3)
         # 这里保留您原有的 CSS 注入逻辑以美化 view_img，但移除了强制黑色背景
         results_paths['ortho'] = path3
 
-        self.log_pyqtSignal.emit("所有交互式图表已生成！")
-        return results_paths
+        # 5. 激活簇表
+        self.log_pyqtSignal.emit("生成激活簇表...")
+        clusters = reporting.get_clusters_table(fmri_mean, stat_threshold=threshold, cluster_threshold=10)
+        clusters.to_csv(os.path.join(self.output_dir, "activation_clusters.csv"), index=False)
 
+        # 6. 脑区激活总结JSON
+        self.log_pyqtSignal.emit("生成脑区激活总结...")
+        peak_coords = plotting.find_xyz_cut_coords(fmri_mean)
+        # 统一转换为列表
+        if isinstance(peak_coords, np.ndarray):
+            peak_coords = peak_coords.tolist()
 
-        '''
-        # 5. 激活簇表（threshold报错）
-        #clusters = reporting.get_clusters_table(fmri_mean, threshold=threshold, cluster_threshold=10)
-        #clusters.to_csv(os.path.join(self.output_dir, "activation_clusters.csv"), index=False)
-        
-
-        # 6. 脑区激活总结JSON（threshold报错）
         summary = {
-            "peak_coords": plotting.find_xyz_cut_coords(fmri_mean).tolist(),
+            "peak_coords": peak_coords,
             "peak_intensity": float(np.max(data)),
             "threshold": float(threshold),
             "activated_voxels": int(np.sum(data > threshold))
         }
         with open(os.path.join(self.output_dir, "activation_summary.json"), "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4, ensure_ascii=False)
-        '''
+        return results_paths
 
-
+        self.log_pyqtSignal.emit("所有交互式图表已生成！")
+        return results_paths

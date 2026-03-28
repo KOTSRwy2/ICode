@@ -6,7 +6,11 @@ from nilearn import plotting, image, masking
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.pyplot as plt
-from nilearn.connectome import ConnectivityMeasure
+
+import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
 
 plt.switch_backend('Agg')
 
@@ -31,12 +35,26 @@ class FMRIConnectivityThread(QThread):
     log_pyqtSignal = pyqtSignal(str)
     finish_pyqtSignal = pyqtSignal()
 
-    def __init__(self, fmri_nifti_path, tr=2.0, mask_path=None):
+    def __init__(self, fmri_nifti_path, tr=2.0, mask_path=None,
+                 window_strategy="time_based",
+                 window_param=60,  # 时间
+                 step_strategy="auto",  # 步长
+                 step_param=10):
         super().__init__()
         self.fmri_nifti_path = fmri_nifti_path
         self.tr = tr
         self.mask_path = mask_path
         self.output_dir = _get_fmri_output_dir()
+
+        # 自适应窗口/步长参数
+        self.window_strategy = window_strategy
+        self.window_param = window_param
+        self.step_strategy = step_strategy
+        self.step_param = step_param
+
+        # 实际生效的窗口/步长（初始化后动态计算）
+        self.window_size = None
+        self.step_size = None
 
     def run(self):
         try:
@@ -66,6 +84,345 @@ class FMRIConnectivityThread(QThread):
         fmri_masked = (fmri_masked - fmri_masked.mean(axis=0)) / (fmri_masked.std(axis=0) + 1e-8)
         fmri_preprocessed = masking.unmask(fmri_masked, mask_img)
         return fmri_preprocessed, mask_img
+
+    def _adapt_sliding_window_params(self, n_timepoints):
+        """
+        自适应计算滑动窗口参数
+        :param n_timepoints: 数据集总时间点数
+        """
+        self.log_pyqtSignal.emit(f"自适应计算滑动窗口参数（总时间点：{n_timepoints}，TR：{self.tr}s）")
+
+        # ========== 1. 计算窗口大小 ==========
+        if self.window_strategy == "time_based":
+            # 按时间长度（秒）计算窗口（如60秒）
+            target_seconds = self.window_param
+            self.window_size = max(2, int(np.round(target_seconds / self.tr)))  # 至少2个时间点
+            self.log_pyqtSignal.emit(f"时间策略：目标{target_seconds}秒 → 窗口大小{self.window_size}个时间点")
+
+        elif self.window_strategy == "proportion_based":
+            # 按数据比例计算窗口（如0.2表示总长度的20%）
+            proportion = np.clip(self.window_param, 0.05, 0.5)  # 限制5%-50%
+            self.window_size = max(2, int(np.round(n_timepoints * proportion)))
+            self.log_pyqtSignal.emit(f"比例策略：总长度{proportion * 100:.1f}% → 窗口大小{self.window_size}个时间点")
+
+        elif self.window_strategy == "fixed":
+            # 固定窗口大小（兜底）
+            self.window_size = max(2, min(self.window_param, n_timepoints))
+            self.log_pyqtSignal.emit(f"固定策略：窗口大小{self.window_size}个时间点（原始{self.window_param}）")
+
+        # 窗口不能超过总时间点
+        self.window_size = min(self.window_size, n_timepoints)
+
+        # ========== 2. 计算步长 ==========
+        if self.step_strategy == "auto":
+            # 自动步长：窗口大小的1/3（经典滑动窗口策略）
+            self.step_size = max(1, int(np.round(self.window_size / 3)))
+            self.log_pyqtSignal.emit(f"自动步长：窗口1/3 → 步长{self.step_size}个时间点")
+
+        elif self.step_strategy == "fixed":
+            # 固定步长
+            self.step_size = max(1, min(self.step_param, self.window_size))
+            self.log_pyqtSignal.emit(f"固定步长：步长{self.step_size}个时间点（原始{self.step_param}）")
+
+        # ========== 3. 边界校验 ==========
+        # 确保至少能生成1个窗口
+        if self.window_size > n_timepoints:
+            self.window_size = n_timepoints
+            self.step_size = 1
+            self.log_pyqtSignal.emit(f"警告：总时间点不足，调整为窗口{self.window_size}，步长{self.step_size}")
+
+        self.log_pyqtSignal.emit(
+            f"最终滑动窗口参数：窗口={self.window_size}({self.window_size * self.tr:.1f}s)，步长={self.step_size}({self.step_size * self.tr:.1f}s)")
+
+    def _get_sliding_window_indices(self, n_timepoints):
+        """
+        生成自适应的滑动窗口索引（处理边界）
+        :param n_timepoints: 总时间点数
+        :return: 窗口索引列表 [(start_idx, end_idx), ...]
+        """
+        windows = []
+        start_idx = 0
+
+        while start_idx + self.window_size <= n_timepoints:
+            end_idx = start_idx + self.window_size
+            windows.append((start_idx, end_idx))
+            start_idx += self.step_size
+
+        # 处理最后一个不完整窗口（可选策略：补全/截断/忽略）
+        if start_idx < n_timepoints and len(windows) > 0:
+            # 策略1：补全最后一个窗口（从末尾往前取）
+            last_start = max(0, n_timepoints - self.window_size)
+            if last_start != windows[-1][0]:  # 避免重复
+                windows.append((last_start, n_timepoints))
+                self.log_pyqtSignal.emit(f"补充最后一个窗口：[{last_start}, {n_timepoints})")
+            # 策略2：忽略不完整窗口（注释掉上面，打开下面）
+            # self.log_pyqtSignal.emit(f"忽略不完整窗口：起始{start_idx}，剩余{n_timepoints-start_idx}个时间点")
+
+        return windows
+
+    def _plot_pos_neg_connectivity_pie(self, conn_matrix, output_dir):
+        """绘制正负连接比例饼图"""
+        self.log_pyqtSignal.emit("计算正负连接比例并绘制饼图...")
+
+        mask = np.eye(conn_matrix.shape[0], dtype=bool)
+        conn_vals = conn_matrix[~mask]
+
+        pos_count = np.sum(conn_vals > 0)
+        neg_count = np.sum(conn_vals < 0)
+        zero_count = np.sum(conn_vals == 0)
+        total = len(conn_vals)
+
+        pos_ratio = pos_count / total * 100
+        neg_ratio = neg_count / total * 100
+        zero_ratio = zero_count / total * 100
+
+        plt.figure(figsize=(10, 8))
+        plt.style.use('dark_background')
+
+        labels = []
+        sizes = []
+        colors = []
+        explode = []
+
+        if pos_ratio > 0:
+            labels.append(f"Positive ({pos_ratio:.1f}%)")
+            sizes.append(pos_count)
+            colors.append('#FF6B6B')
+            explode.append(0.05)
+        if neg_ratio > 0:
+            labels.append(f"Negative ({neg_ratio:.1f}%)")
+            sizes.append(neg_count)
+            colors.append('#4ECDC4')
+            explode.append(0.05)
+        if zero_ratio > 0:
+            labels.append(f"Zero ({zero_ratio:.1f}%)")
+            sizes.append(zero_count)
+            colors.append('#95A5A6')
+            explode.append(0)
+
+        wedges, texts, autotexts = plt.pie(
+            sizes, labels=labels, colors=colors, explode=explode,
+            autopct='%1.1f%%', shadow=True, startangle=90,
+            textprops={'color': 'white', 'fontsize': 12}
+        )
+        plt.title("Positive/Negative Connectivity Ratio", fontsize=14, color="orangered", pad=20)
+
+        plt.legend(
+            [plt.Rectangle((0, 0), 1, 1, color='#FF6B6B'),
+             plt.Rectangle((0, 0), 1, 1, color='#4ECDC4'),
+             plt.Rectangle((0, 0), 1, 1, color='#95A5A6')],
+            [f"Positive ({pos_ratio:.1f}%)",
+             f"Negative ({neg_ratio:.1f}%)",
+             f"Zero ({zero_ratio:.1f}%)"],
+            loc="center left",
+            bbox_to_anchor=(1, 0, 0.5, 1),
+            facecolor="black",
+            edgecolor="white",
+            labelcolor="white",
+            fontsize=15
+        )
+
+        pie_path = os.path.join(output_dir, "fmri_connectivity_pos_neg_pie.png")
+        plt.savefig(pie_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        plt.close()
+
+        pos_neg_stats = {
+            "positive_count": int(pos_count),
+            "negative_count": int(neg_count),
+            "zero_count": int(zero_count),
+            "positive_ratio": float(pos_ratio),
+            "negative_ratio": float(neg_ratio),
+            "zero_ratio": float(zero_ratio)
+        }
+        self.log_pyqtSignal.emit(f"正负连接比例饼图已保存：{pie_path}")
+        self.log_pyqtSignal.emit(f"正连接比例：{pos_ratio:.1f}% | 负连接比例：{neg_ratio:.1f}%")
+        return pie_path, pos_neg_stats
+
+    def _plot_sliding_window_connectivity(self, roi_timeseries, output_dir, tr=2.0):
+        """
+        绘制滑动窗口功能连接可视化（适配不同数据集）
+        :param roi_timeseries: 脑区时间序列 (n_regions, n_timepoints)
+        :param output_dir: 输出目录
+        :param tr: 重复时间（秒）
+        :return: 滑动窗口可视化路径、统计数据路径
+        """
+        self.log_pyqtSignal.emit("开始绘制滑动窗口功能连接可视化...")
+
+        n_regions, n_timepoints = roi_timeseries.shape
+
+        self._adapt_sliding_window_params(n_timepoints)
+
+        windows = self._get_sliding_window_indices(n_timepoints)
+        n_windows = len(windows)
+
+        if n_windows <= 0:
+            self.log_pyqtSignal.emit(f"警告：无法生成有效滑动窗口（总时间点：{n_timepoints}，窗口：{self.window_size}）")
+            return None, None
+
+        self.log_pyqtSignal.emit(
+            f"滑动窗口参数：窗口大小={self.window_size}个时间点({self.window_size * tr:.1f}s)，步长={self.step_size}个时间点({self.step_size * tr:.1f}s)，总窗口数={n_windows}")
+
+        window_metrics = []
+
+        window_conn_matrices = []
+
+        for window_idx, (start_idx, end_idx) in enumerate(windows):
+            window_ts = roi_timeseries[:, start_idx:end_idx]
+
+            window_conn = np.corrcoef(window_ts)
+            window_conn_matrices.append(window_conn)
+
+            mask = np.eye(n_regions, dtype=bool)
+            conn_vals = window_conn[~mask]
+
+            # 指标1：平均连接强度
+            mean_conn_strength = np.mean(np.abs(conn_vals))
+            # 指标2：正连接比例
+            pos_ratio = np.sum(conn_vals > 0) / len(conn_vals) * 100
+            # 指标3：负连接比例
+            neg_ratio = np.sum(conn_vals < 0) / len(conn_vals) * 100
+            # 指标4：连接矩阵的标准差（异质性）
+            conn_std = np.std(conn_vals)
+
+            start_time = start_idx * tr
+            end_time = end_idx * tr
+
+            window_metrics.append({
+                "window_idx": window_idx,
+                "start_time_s": start_time,
+                "end_time_s": end_time,
+                "mean_conn_strength": mean_conn_strength,
+                "pos_ratio": pos_ratio,
+                "neg_ratio": neg_ratio,
+                "conn_std": conn_std
+            })
+
+        plt.figure(figsize=(16, 10))
+        plt.style.use('dark_background')
+
+        window_indices = [m["window_idx"] for m in window_metrics]
+        start_times = [m["start_time_s"] for m in window_metrics]
+        mean_strengths = [m["mean_conn_strength"] for m in window_metrics]
+        pos_ratios = [m["pos_ratio"] for m in window_metrics]
+        neg_ratios = [m["neg_ratio"] for m in window_metrics]
+        conn_stds = [m["conn_std"] for m in window_metrics]
+
+        # 创建2行2列的子图
+        gs = plt.GridSpec(2, 2, hspace=0.3, wspace=0.3)
+
+        # 子图1：平均连接强度
+        ax1 = plt.subplot(gs[0, 0])
+        ax1.plot(start_times, mean_strengths, color='#FF6B6B', linewidth=2, marker='o', markersize=4)
+        ax1.set_title("平均连接强度 (滑动窗口)", fontsize=12, color="orangered")
+        ax1.set_xlabel("时间 (秒)", color="white")
+        ax1.set_ylabel("平均绝对相关系数", color="white")
+        ax1.tick_params(colors='white')
+        ax1.grid(color='white', alpha=0.2)
+        if len(mean_strengths) > 0:
+            y_min = max(0, np.min(mean_strengths) * 0.9)
+            y_max = np.max(mean_strengths) * 1.1
+            ax1.set_ylim(y_min, y_max)
+
+        # 子图2：正负连接比例
+        ax2 = plt.subplot(gs[0, 1])
+        ax2.plot(start_times, pos_ratios, color='#FF6B6B', linewidth=2, marker='o', markersize=4, label='正连接')
+        ax2.plot(start_times, neg_ratios, color='#4ECDC4', linewidth=2, marker='s', markersize=4, label='负连接')
+        ax2.set_title("正负连接比例 (滑动窗口)", fontsize=12, color="orangered")
+        ax2.set_xlabel("时间 (秒)", color="white")
+        ax2.set_ylabel("比例 (%)", color="white")
+        ax2.tick_params(colors='white')
+        ax2.legend(facecolor='black', edgecolor='white', labelcolor='white')
+        ax2.grid(color='white', alpha=0.2)
+        ax2.set_ylim(0, 100)
+
+        # 子图3：连接异质性（标准差）
+        ax3 = plt.subplot(gs[1, 0])
+        ax3.plot(start_times, conn_stds, color='#FECA57', linewidth=2, marker='^', markersize=4)
+        ax3.set_title("连接异质性 (滑动窗口)", fontsize=12, color="orangered")
+        ax3.set_xlabel("时间 (秒)", color="white")
+        ax3.set_ylabel("连接值标准差", color="white")
+        ax3.tick_params(colors='white')
+        ax3.grid(color='white', alpha=0.2)
+        if len(conn_stds) > 0:
+            y_min = max(0, np.min(conn_stds) * 0.9)
+            y_max = np.max(conn_stds) * 1.1
+            ax3.set_ylim(y_min, y_max)
+
+        # 子图4：窗口覆盖示意图
+        ax4 = plt.subplot(gs[1, 1])
+
+        ax4.plot([0, n_timepoints * tr], [0, 0], color='white', linewidth=2)
+
+        for i, (start_idx, end_idx) in enumerate(windows):
+            start = start_idx * tr
+            end = end_idx * tr
+
+            color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
+            ax4.fill_between([start, end], [-0.1, -0.1], [0.1, 0.1],
+                             color=color, alpha=0.5, label='窗口' if i == 0 else "")
+
+            if i % max(1, n_windows // 10) == 0:  # 自适应标注密度（最多10个标注）
+                ax4.text((start + end) / 2, 0.15, f"W{i}", color='white', ha='center', fontsize=8)
+
+        ax4.set_title("滑动窗口覆盖示意图", fontsize=12, color="orangered")
+        ax4.set_xlabel("时间 (秒)", color="white")
+        ax4.set_ylim(-0.3, 0.3)
+        ax4.set_yticks([])
+        ax4.tick_params(colors='white')
+        ax4.grid(color='white', alpha=0.2)
+
+        sliding_window_path = os.path.join(output_dir, "fmri_sliding_window_metrics.png")
+        plt.savefig(sliding_window_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        plt.close()
+
+        # 3. 绘制典型窗口的连接矩阵热力图（自适应选择关键窗口）
+        # 按窗口数自适应选择展示数量（最多5个）
+        n_show = min(5, n_windows)
+        key_window_indices = np.linspace(0, n_windows - 1, n_show, dtype=int)
+        key_window_indices = sorted(list(set(key_window_indices)))  # 去重
+
+        plt.figure(figsize=(4 * n_show, 4))
+        plt.style.use('dark_background')
+        cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
+                                                 ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
+                                                 N=256)
+
+        for idx, win_idx in enumerate(key_window_indices):
+            ax = plt.subplot(1, len(key_window_indices), idx + 1)
+            conn = window_conn_matrices[win_idx]
+            im = ax.imshow(conn, cmap=cmap, vmin=-1, vmax=1)
+
+            win_metric = window_metrics[win_idx]
+            ax.set_title(f"窗口 {win_idx}\n{win_metric['start_time_s']:.0f}-{win_metric['end_time_s']:.0f}s",
+                         color="white", fontsize=10)
+            ax.set_xlabel("脑区索引", color="white", fontsize=8)
+            ax.set_ylabel("脑区索引", color="white", fontsize=8)
+            ax.tick_params(colors='white', labelsize=8)
+
+        cbar_ax = plt.axes([0.92, 0.15, 0.02, 0.7])
+        cbar = plt.colorbar(im, cax=cbar_ax, label="皮尔逊相关系数")
+        cbar.ax.tick_params(labelsize=10, colors='white')
+        cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
+
+        sliding_window_heatmap_path = os.path.join(output_dir, "fmri_sliding_window_heatmaps.png")
+        plt.savefig(sliding_window_heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        plt.close()
+
+        # 4. 保存窗口指标到CSV
+        metrics_df = pd.DataFrame(window_metrics)
+        metrics_csv_path = os.path.join(output_dir, "fmri_sliding_window_metrics.csv")
+        metrics_df.to_csv(metrics_csv_path, index=False, encoding='utf-8-sig')
+
+        # 5. 可：保存所有窗口的连接矩阵（用于后续分析）
+        np.save(os.path.join(output_dir, "fmri_sliding_window_conn_matrices.npy"),
+                np.array(window_conn_matrices))
+
+        self.log_pyqtSignal.emit(f"滑动窗口指标图已保存：{sliding_window_path}")
+        self.log_pyqtSignal.emit(f"典型窗口连接矩阵图已保存：{sliding_window_heatmap_path}")
+        self.log_pyqtSignal.emit(f"滑动窗口指标数据已保存：{metrics_csv_path}")
+
+        return sliding_window_path, metrics_csv_path
+
 
 
     def _compute_fmri_connectivity(self, fmri_img, mask_img):
@@ -175,21 +532,35 @@ class FMRIConnectivityThread(QThread):
         conn_matrix = np.corrcoef(roi_timeseries)
         self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]}×{conn_matrix.shape[1]} 功能连接矩阵")
 
-        ######### 2. 绘制连接矩阵热力图（放大画布适配完整脑区，纯黑背景对齐EEG）
+        # 2. 绘制连接矩阵热力图
         plt.figure(figsize=(15, 12))
         plt.style.use('dark_background')
-        plt.imshow(conn_matrix, cmap="coolwarm", vmin=-1, vmax=1)
-        plt.colorbar(label="Pearson Correlation")
-        plt.title("fMRI Functional Connectivity Matrix (Full AAL ROI)", fontsize=14, color="orangered")
-        plt.xlabel("ROI Index", fontsize=12, color="white")
-        plt.ylabel("ROI Index", fontsize=12, color="white")
+        cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
+                                                 ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
+                                                 N=256)
+
+        im = plt.imshow(conn_matrix, cmap=cmap, vmin=-1, vmax=1)
+        cbar = plt.colorbar(im, label="皮尔逊相关系数", shrink=0.8, pad=0.02,
+                            ticks=np.linspace(-1, 1, 9),
+                            fraction=0.046, aspect=20)
+        cbar.ax.tick_params(labelsize=10, colors='white')
+        cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
+        plt.title("fMRI功能连接矩阵（完整AAL脑区）", fontsize=14, color="orangered")
+        plt.xlabel("脑区索引", fontsize=12, color="white")
+        plt.ylabel("脑区索引", fontsize=12, color="white")
         plt.xticks(color="white")
         plt.yticks(color="white")
         heatmap_path = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.png")
         plt.savefig(heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
         plt.close()
         self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{heatmap_path}")
-        ########
+
+        # 新增：绘制正负连接饼图
+        pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir)
+
+        # ========== 新增：滑动窗口可视化 ==========
+        self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr)
+
         self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
@@ -197,7 +568,7 @@ class FMRIConnectivityThread(QThread):
 
         html_path = os.path.join(self.output_dir, f"{base_name}_connectivity.html")
 
-        #edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
+        # edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
         edge_threshold = "90%"
 
         view = plotting.view_connectome(
@@ -208,6 +579,11 @@ class FMRIConnectivityThread(QThread):
 
         with open(html_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
+
+        title_tag = f"<title>fMRI Connectivity - AAL ({len(unique_labels)} ROIs)</title>"
+        html_content = re.sub(r'<title>.*?</title>', title_tag, html_content)
+        html_content = html_content.replace('background-color:white', 'background-color:black')
+        html_content = html_content.replace('background:white', 'background:black')
 
         title_tag = f"<title>fMRI Connectivity - AAL ({len(unique_labels)} ROIs)</title>"
         html_content = re.sub(r'<title>.*?</title>', title_tag, html_content)
