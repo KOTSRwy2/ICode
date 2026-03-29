@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/res">
+
+        <file>dark/main.qss</file>
+        <file>dark/interactive_chart_card.qss</file>
+
+
+        <file>light/main.qss</file>
+        <file>light/interactive_chart_card.qss</file>
+
+    </qresource>
+</RCC>

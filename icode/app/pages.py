@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 import os
-from PyQt5.QtCore import Qt, QSize, QUrl
+import ast
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QMainWindow, QAction
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QMainWindow,QGridLayout
 )
-from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushButton,
-    ComboBoxSettingCard, OptionsConfigItem, OptionsValidator,
-    qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
+    ComboBoxSettingCard, qconfig, Theme, setTheme, setThemeColor, InfoBar, InfoBarPosition,
     TextEdit, ComboBox, LineEdit, IndeterminateProgressBar,
-    SubtitleLabel, BodyLabel, FluentStyleSheet, isDarkTheme
+    SubtitleLabel, BodyLabel, OptionsSettingCard
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -21,7 +21,9 @@ from connectivity_visualization import compute_connectivity_data, render_connect
 from fmri_activation import FMRIActivationThread
 from fmri_connectivity import FMRIConnectivityThread
 from CustomWebEnginePage import CustomWebEngineView
-
+from InteractiveChartCard import InteractiveChartCard
+from app.common.config import cfg
+from app.common.style_sheet import StyleSheet
 
 class VisualizationWebWindow(QMainWindow):
     """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
@@ -37,7 +39,6 @@ class VisualizationWebWindow(QMainWindow):
         self.setCentralWidget(self.web)
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
-        # self.setCentralWidget(self.web)
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
 
@@ -50,21 +51,15 @@ class BaseFunctionPage(ScrollArea):
         super().__init__(parent=parent)
         self.module_name = module_name
         self.setObjectName(title.replace(" ", "_"))
-
         # 保留圆角与无边框，不覆盖 Fluent 的主题背景绘制
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # 移除强制样式覆盖，改用 FluentWidgets 推荐的透明化配置
         self.viewport().setObjectName("FunctionPageViewport")
-        self.viewport().setStyleSheet("background: transparent; border: none;")
 
         self.view = QWidget(self)
         self.view.setObjectName("FunctionPageView")
-        self.view.setStyleSheet("background: transparent;")
-
-        # 允许通过父窗口（FluentWindow）传递主题背景
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         # 主布局
         self.main_layout = QVBoxLayout(self.view)
@@ -92,6 +87,7 @@ class BaseFunctionPage(ScrollArea):
 
         self.setWidget(self.view)
         self.worker = None # 后台工作线程引用，防止被回收
+        self.view.setObjectName('view')
 
     def _build_status_bar(self):
         # 进度状态外层布局
@@ -161,6 +157,20 @@ class BaseFunctionPage(ScrollArea):
         self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window())
         self._viz_window.show()
 
+    def _on_theme_changed(self, theme: Theme):
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新窗口
+        self.update()
+        self.repaint()
+        QApplication.processEvents()
+
+    def _clear_previous_cards(self):
+        """清空之前生成的卡片容器（防止多次运行后无限往下叠加）"""
+        if hasattr(self, 'cards_container') and self.cards_container is not None:
+            self.content_layout.removeWidget(self.cards_container)
+            self.cards_container.deleteLater()
+            self.cards_container = None
 
 # ==========================================
 # EEG 源定位页面
@@ -211,6 +221,7 @@ class EEGSourcePage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 BDF 文件", "", "BDF Files (*.bdf)")
@@ -357,6 +368,7 @@ class EEGConnectivityPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addLayout(parameters_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def get_selected_duration(self):
         text = self.duration_box.currentText()
@@ -474,6 +486,8 @@ class FMRIActivationPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
 
+        StyleSheet.MAIN.apply(self)
+
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
         if file_path:
@@ -497,16 +511,116 @@ class FMRIActivationPage(BaseFunctionPage):
         self.worker.finished_sig.connect(self._on_task_finished)
         self.worker.start()
 
-    def _on_task_finished(self, success, out_path):
-        self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
-            log_manager.add_log(f"fMRI 激活图生成完成: {out_path}", self.module_name)
-            self.show_success_dialog("计算完毕", f"已输出 fMRI 脑区激活图到:\n{out_path}")
-            self.show_html_in_subwindow(out_path, "fMRI 激活定位可视化")
-        else:
-            log_manager.add_log(f"fMRI 处理失败: {out_path}", self.module_name)
-            self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{out_path}")
 
+    def _on_task_finished(self, success, result_data):
+        """处理子线程返回的结果"""
+        self.set_running_state(False, "执行完成" if success else "执行失败")
+
+        if success and result_data is not None:
+            result_data = ast.literal_eval(result_data)
+
+            main = result_data["main"]
+            log_manager.add_log(f"fMRI 脑区激活定位图生成完成: {main}", self.module_name)
+            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{main}")
+            self.show_html_in_subwindow(main, "fMRI 脑区激活定位可视化")
+
+            log_manager.add_log(f"fMRI 图表渲染完成，准备挂载UI", self.module_name)
+            self.show_success_dialog("计算完毕", "激活分析已完成，请在下方查看交互图表。")
+
+            # 清理之前可能残留的卡片
+            self._clear_previous_cards()
+
+            # 创建一个用于容纳卡片的布局
+            self.cards_container = QWidget()
+            self.cards_container.setObjectName("CardsContainer")
+            self.cards_layout = QVBoxLayout(self.cards_container)
+            self.cards_layout.setContentsMargins(0, 16, 0, 0)
+            self.cards_layout.setSpacing(16)
+
+            # 挂载卡片 1：曲线图
+            card1 = InteractiveChartCard(
+                title="阈值-激活体素数曲线",
+                description="查看不同阈值下，显著激活体素的数量变化，帮你选择合适的分析阈值。点击查看更多信息。",
+                html_path=result_data.get('curve', ''),
+                detail_text=
+"""
+本曲线展示了不同统计阈值下，被判定为“显著激活”的脑体素数量变化趋势。
+在fMRI分析中，每个体素会被赋予一个统计值（如z-score），通过设置不同阈值，可筛选出不同显著性水平的脑区。
+
+如何理解：
+- 横轴：统计阈值（数值越大，筛选标准越严格）
+- 纵轴：被判定为“显著激活”的体素总数
+
+曲线特点：
+- 阈值较低：激活体素数量多，但可能包含噪声
+- 阈值较高：激活体素数量少，但结果的统计可靠性更高
+
+核心用途：
+1. 辅助选择合理的统计阈值，平衡噪声与结果的敏感性
+2. 评估激活结果对阈值变化的稳定性，判断数据质量
+3. 结合FDR/ Bonferroni等校正方法，确定最终分析阈值                
+"""                ,
+                chart_name = "阈值-激活体素数曲线",
+                image_url = r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
+                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
+                enable_animation=True,
+            )
+            card1.web_view.setFixedHeight(500)
+            # 挂载卡片 2：直方图
+            card2 = InteractiveChartCard(
+                title="激活强度分布直方图",
+                description="全脑激活强度分布，红色虚线为90%高激活阈值，可快速定位显著脑区。点击查看更多信息。",
+                html_path=result_data.get('histogram', ''),
+                detail_text=
+"""
+本图展示了全脑体素的激活强度频数分布，可直观反映数据整体特征。
+图中红色虚线为系统计算的90%分位数阈值线，用于快速定位高显著性激活区域。
+
+如何理解：
+- 横轴：激活强度（数值越大，体素的任务响应越强）
+- 纵轴：对应激活强度的体素数量
+- 红色虚线右侧：代表全脑内统计上最显著的高响应体素
+
+核心用途：
+1. 快速评估数据分布形态与整体质量
+2. 量化不同激活强度区间的体素占比
+3. 为阈值选择提供数据分布依据
+""",
+                chart_name = "阈值-激活体素数曲线",
+                image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                enable_animation=False,
+            )
+            card2.web_view.setFixedHeight(500)
+            # # 挂载卡片 3：交互切片脑图
+            # card3 = InteractiveChartCard(
+            #     title="三正交切片交互脑图 (最高激活点)",
+            #     description="点击查看 3D 视图交互操作指南",
+            #     html_path=result_data.get('ortho', ''),
+            #     detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。",
+            #     chart_name="阈值-激活体素数曲线",
+            #     image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+            #     tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            # )
+            # print(result_data)
+            # 赋予脑图卡片更大的高度
+            # card3.web_view.setFixedHeight(500)
+
+            # 添加到垂直布局
+            self.cards_layout.addWidget(card1)
+            self.cards_layout.addWidget(card2)
+            # self.cards_layout.addWidget(card3)
+
+            # 将卡片容器添加到当前页面的主内容区底部
+            self.content_layout.addWidget(self.cards_container)
+
+            self.view.updateGeometry()
+            self.update()
+            QApplication.processEvents()
+
+        else:
+            log_manager.add_log(f"fMRI 处理失败: {result_data}", self.module_name)
+            self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{result_data}")
 
 # ==========================================
 # fMRI 连接分析页面
@@ -534,6 +648,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
 
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
+        StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择 fMRI 文件", "", "NIfTI Files (*.nii *.nii.gz)")
@@ -558,15 +673,143 @@ class FMRIConnectivityPage(BaseFunctionPage):
         self.worker.finished_sig.connect(self._on_task_finished)
         self.worker.start()
 
-    def _on_task_finished(self, success, out_path):
+    def _on_task_finished(self, success, result_data):
         self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
-            log_manager.add_log(f"fMRI 连接图生成完成: {out_path}", self.module_name)
-            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{out_path}")
-            self.show_html_in_subwindow(out_path, "fMRI 功能连接可视化")
+        if success and result_data is not None:
+            result_data = ast.literal_eval(result_data)
+
+            main = result_data["main"]
+            log_manager.add_log(f"fMRI 连接图生成完成: {main}", self.module_name)
+            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{main}")
+            self.show_html_in_subwindow(main, "fMRI 功能连接可视化")
+
+            # 清理之前可能残留的卡片
+            self._clear_previous_cards()
+
+            # 创建一个用于容纳卡片的布局
+            self.cards_container = QWidget()
+            self.cards_container.setObjectName("CardsContainer")
+            self.cards_layout = QVBoxLayout(self.cards_container)
+            self.cards_layout.setContentsMargins(0, 16, 0, 0)
+            self.cards_layout.setSpacing(16)
+
+            # 挂载卡片 1：正负连接饼图
+            card1 = InteractiveChartCard(
+                title="正负功能连接比例饼图",
+                description="正负连接比例饼图，红色代表协同激活，青色代表反向调节。点击查看更多信息。",
+                html_path=result_data.get('pie_path', ''),
+                detail_text=
+"""
+本图基于全脑功能连接矩阵，统计所有脑区连接对中，正相关、负相关及零相关连接的占比分布情况。
+
+如何理解：
+- 红色扇区（Positive）：代表正相关连接占比，反映脑区间协同激活与同步活动
+- 青色扇区（Negative）：代表负相关连接占比，反映脑区间功能拮抗与抑制性交互
+- 灰色扇区（Zero）：代表无显著线性关联的连接占比
+
+核心用途：
+1. 量化评估大脑功能网络的兴奋-抑制平衡状态
+2. 分析任务态或静息态下脑网络整体调控机制的变化
+3. 为脑网络整合性、稳定性及病理状态（如精神疾病）的研究提供宏观指标
+""",
+                chart_name="正负功能连接比例饼图",
+                image_url=r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
+                # tutorial_url="https://blog.csdn.net/sky77/article/details/149389952",
+            )
+            card1.web_view.setFixedHeight(500)
+            # 挂载卡片 2：滑动窗口功能连接动态指标图
+            card2 = InteractiveChartCard(
+                title="滑动窗口功能连接动态指标图",
+                description="滑动窗口动态功能连接，展示脑网络连接强度、平衡度与稳定性随时间的变化。点击查看更多信息。",
+                html_path=result_data.get('path_metrics', ''),
+                detail_text=
+"""
+本图通过在时间轴上滑动分析窗口，动态计算全脑功能连接的多维度统计指标，全面揭示脑网络随时间变化的时序特征与动态规律。
+
+如何理解：
+- 平均连接强度（左上）：横轴为时间，纵轴为平均绝对相关系数，反映整体连接水平
+- 正负连接比例（右上）：红线为正连接比例，青线为负连接比例，反映网络兴奋-抑制平衡
+- 连接异质性（左下）：横轴为时间，纵轴为连接值标准差，反映脑网络连接模式的多样性
+- 滑动窗口覆盖示意（右下）：彩色条块展示每个分析窗口在时间轴上的位置与重叠关系
+
+核心用途：
+1. 评估脑网络连接强度的时间稳定性与动态波动趋势
+2. 分析任务相关的脑网络兴奋/抑制平衡的动态转换机制
+3. 量化脑网络状态的复杂性，为动态功能连接研究提供多维量化依据
+""",
+                chart_name="滑动窗口功能连接动态指标图",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                enable_animation=True,
+            )
+            card2.web_view.setFixedHeight(500)
+            # 挂载卡片 3：多时间窗口功能连接热力图
+            card3 = InteractiveChartCard(
+                title="多时间窗口功能连接热力图",
+                description="不同时间窗口连接热力图，观察脑网络随时间的动态变化。点击查看更多信息。",
+                html_path=result_data.get('path_heatmap', ''),
+                detail_text=
+"""
+本图选取全时间序列中具有代表性的关键时间窗口，分别展示各时段内的功能连接矩阵，用于直观呈现脑网络的动态重组过程。
+
+如何理解：
+- 每一个子图：对应一个独立的时间窗口（如窗口0对应0-60s, 窗口10 对应196-256s）
+- 时间标注：显示每个窗口对应的时间范围，便于对应分析
+- 颜色深浅：代表该时间点脑区间连接强度的高低
+- 对比观察：通过多张子图的横向对比，可观察连接模式的时空演变
+
+核心用途：
+1. 追踪任务执行过程中，脑网络连接模式的动态演变与状态切换
+2. 识别脑网络连接强度发生显著变化的关键时间节点
+3. 验证动态功能连接分析的稳定性，观察不同时段网络结构的差异
+""",
+                chart_name="多时间窗口功能连接热力图",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            )
+
+            card3.web_view.setFixedHeight(550)
+
+            card4 = InteractiveChartCard(
+                title="全脑功能连接矩阵",
+                description="AAL 脑区功能连接热力图，颜色代表脑区同步强度，红色为正相关、蓝色为负相关，越红 / 蓝关联越强。点击查看更多信息。",
+                html_path=result_data.get('path_full_heatmap', ''),
+                detail_text=
+"""
+本图基于AAL标准脑区分割模板，计算全脑两两脑区时间序列之间的皮尔逊相关系数，构建全脑功能连接矩阵。
+
+如何理解：
+- 横轴/纵轴：脑区索引，对应AAL脑区分割模板中的83个脑区
+- 颜色刻度：从蓝色(-1.0)到红色(1.0)，代表皮尔逊相关系数大小
+- 颜色越红：脑区间活动同步性越强，正相关越高
+- 颜色越蓝：脑区间活动负相关程度越高
+- 对角线元素：代表脑区与自身的相关值，恒为1，无生物学意义
+
+核心用途：
+1. 直观识别全脑功能网络的模块化结构与高密度连接通路
+2. 快速定位核心枢纽脑区与异常连接（如显著负连接区域）
+3. 为后续动态连接分析、图论网络属性计算及组间统计比较提供基础数据
+""",
+                chart_name="全脑功能连接矩阵（AAL 脑区）",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            )
+            card4.web_view.setFixedHeight(500)
+            # 添加到垂直布局
+            self.cards_layout.addWidget(card1)
+            self.cards_layout.addWidget(card2)
+            self.cards_layout.addWidget(card3)
+            self.cards_layout.addWidget(card4)
+
+            # 将卡片容器添加到当前页面的主内容区底部
+            self.content_layout.addWidget(self.cards_container)
+
+            self.view.updateGeometry()
+            self.update()
+            QApplication.processEvents()
         else:
-            log_manager.add_log(f"连接计算失败: {out_path}", self.module_name)
-            self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{out_path}")
+            log_manager.add_log(f"连接计算失败: {result_data}", self.module_name)
+            self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{result_data}")
 
 
 # ==========================================
@@ -580,12 +823,11 @@ class LogReportPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.viewport().setStyleSheet("background: transparent; border: none;")
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
+
 
         self.view = QWidget(self)
         self.view.setObjectName("LogReportPageView")
-        self.view.setStyleSheet("background: transparent;")
+
         self.main_layout = QVBoxLayout(self.view)
         self.main_layout.setContentsMargins(36, 36, 36, 36)
 
@@ -623,6 +865,7 @@ class LogReportPage(ScrollArea):
 
         # 绑定核心派发器刷新UI
         log_manager.log_updated.connect(self._update_log_display)
+        StyleSheet.MAIN.apply(self)
 
     def _update_log_display(self):
         mod = self.combo_filter.currentText()
@@ -657,12 +900,10 @@ class SettingsPage(ScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.viewport().setStyleSheet("background: transparent; border: none;")
-        self.setStyleSheet("ScrollArea { background: transparent; border: none; }")
 
         self.view = QWidget(self)
         self.view.setObjectName("SettingsPageView")
-        self.view.setStyleSheet("background: transparent;")
+
         self.expand_layout = ExpandLayout(self.view)
         self.expand_layout.setContentsMargins(36, 36, 36, 36)
 
@@ -676,21 +917,21 @@ class SettingsPage(ScrollArea):
         self.personal_group = SettingCardGroup("界面与主题", self.view)
 
         # 主题模式：必须调用 setTheme 才会刷新 Fluent 背景与控件样式
-        self.theme_card = ComboBoxSettingCard(
-            configItem=qconfig.themeMode,
-            icon=FIF.BRUSH,
-            title="应用主题",
-            content="更改应用的外观并重新映射内部颜色",
-            texts=["浅色", "深色", "跟随系统"],
+        self.theme_card = OptionsSettingCard(
+            cfg.themeMode,
+            FIF.BRUSH,
+            self.tr("应用主题"),
+            self.tr("更改应用的外观并重新映射内部颜色"),
+            texts=[
+                self.tr("浅色"), self.tr("深色"),
+                self.tr("跟随系统")
+            ],
             parent=self.personal_group
-        )
-        self.theme_card.comboBox.currentIndexChanged.connect(
-            lambda i: self._on_theme_changed(i)
         )
 
         from qfluentwidgets import ColorSettingCard
         self.color_card = ColorSettingCard(
-            qconfig.themeColor,
+            cfg.themeColor,
             icon=FIF.PALETTE,
             title="主题色",
             content="自定义状态与高亮的指向色",
@@ -700,11 +941,23 @@ class SettingsPage(ScrollArea):
         self.personal_group.addSettingCard(self.theme_card)
         self.personal_group.addSettingCard(self.color_card)
 
+        # ensure theme changes actually update qfluentwidgets styles
+        cfg.themeChanged.connect(setTheme)
+        # propagate color selection to fluent theme color
+        self.color_card.colorChanged.connect(lambda c: setThemeColor(c))
+
         self.expand_layout.addWidget(self.personal_group)
         self.setWidget(self.view)
+        StyleSheet.MAIN.apply(self)
 
-    def _on_theme_changed(self, index: int):
-        theme = [Theme.LIGHT, Theme.DARK, Theme.AUTO][index]
-        setTheme(theme, save=True, lazy=False)
-        # qconfig.themeChanged 信号会触发 main.py 中的刷新，但我们这里也可以手动更新样式
-        # FluentStyleSheet.apply(self.window())
+    def _on_theme_changed(self, theme):
+        # theme = [Theme.LIGHT, Theme.DARK, Theme.AUTO][index]
+        # setTheme(theme, save=True, lazy=False)
+        # # qconfig.themeChanged 信号会触发 main.py 中的刷新，但我们这里也可以手动更新样式
+        # # FluentStyleSheet.apply(self.window())
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新窗口
+        self.update()
+        self.repaint()
+        QApplication.processEvents()

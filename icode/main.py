@@ -6,17 +6,24 @@ main.py
 """
 
 import sys
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentWindow,
     NavigationItemPosition,
-    setTheme, 
+    setTheme,
     Theme,
     setThemeColor,
-    qconfig
+    qconfig,
+    SystemThemeListener,
+    isDarkTheme,
+    FluentStyleSheet
 )
 from qfluentwidgets import FluentIcon as FIF
+from app.common.style_sheet import StyleSheet
+from app.common.config import cfg
+import qfluentwidgets, sys
 
 # 导入业务独立页面
 from app.pages import (
@@ -27,10 +34,13 @@ from app.pages import (
     LogReportPage,
     SettingsPage
 )
+
+from app.common import resource
+
 class EEGFMRIFluentApp(FluentWindow):
     def __init__(self):
         super().__init__()
-        
+        self.themeListener = SystemThemeListener(self)
         # 1. 优先基础设置与初始化
         self._init_window_spec()
         
@@ -43,16 +53,30 @@ class EEGFMRIFluentApp(FluentWindow):
         self.page_log = LogReportPage(self)
         self.page_setting = SettingsPage(self)
 
+        self._all_pages = [
+            self.page_eeg_src, self.page_eeg_conn,
+            self.page_fmri_act, self.page_fmri_conn,
+            self.page_log, self.page_setting
+        ]
+
         # 3. 挂载到左侧导航树
         self._init_navigation()
+
+        qconfig.themeChanged.connect(self._on_theme_changed)
+        self.themeListener.start()
+
+        self._on_theme_changed(cfg.theme)
+        print(cfg.themeColor)
+        StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):
         self.resize(1100, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
-        
-        # 设置默认亮色主题以符合科学计算普遍交互观感
-        setTheme(Theme.LIGHT, save=True)
-        setThemeColor("#1677ff") # 默认选用医学蓝
+
+        # setThemeColor("#1677ff")
+        setThemeColor(cfg.themeColor.value)
+
+        self.setMicaEffectEnabled(True)
         
         desktop = QApplication.desktop().availableGeometry()
         self.move(
@@ -72,6 +96,32 @@ class EEGFMRIFluentApp(FluentWindow):
         # 最底部系统面板
         self.addSubInterface(self.page_log, FIF.DOCUMENT, "日志中心", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.page_setting, FIF.SETTING, "系统设置", NavigationItemPosition.BOTTOM)
+
+    def _on_theme_changed(self, theme: Theme):
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新所有子页面
+        for page in self._all_pages:
+            if hasattr(page, '_on_theme_changed'):
+                page._on_theme_changed(theme)
+
+        # 刷新窗口
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+        QApplication.processEvents()
+
+    def closeEvent(self, e):
+        self.themeListener.terminate()
+        self.themeListener.deleteLater()
+        super().closeEvent(e)
+
+    def _onThemeChangedFinished(self):
+        super()._onThemeChangedFinished()
+
+        # retry
+        if self.isMicaEffectEnabled():
+            QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
 if __name__ == "__main__":
     # 高分屏支持
