@@ -238,30 +238,30 @@ class FMRIActivationThread(QThread):
 
         results_paths['histogram'] = path2
 
-        ####### 4. 三正交切片图（强制显示最强激活点！）（切的点太怪了感觉不对，如果可以直接在前端交互窗口加个截图功能？）
-        self.log_pyqtSignal.emit("生成交互式三正交切片视图...")
-        # 寻找最强激活峰值坐标作为默认切片中心
-        from nilearn.masking import compute_epi_mask
-        mask = compute_epi_mask(fmri_mean)
-        peak_coords = plotting.find_xyz_cut_coords(fmri_mean, mask_img=mask)
+        # ####### 4. 三正交切片图（强制显示最强激活点！）（切的点太怪了感觉不对，如果可以直接在前端交互窗口加个截图功能？）
+        # self.log_pyqtSignal.emit("生成交互式三正交切片视图...")
+        # # 寻找最强激活峰值坐标作为默认切片中心
+        # from nilearn.masking import compute_epi_mask
+        # mask = compute_epi_mask(fmri_mean)
+        # peak_coords = plotting.find_xyz_cut_coords(fmri_mean, mask_img=mask)
+        #
+        # path3 = os.path.join(self.output_dir, f"{base_name}_ortho.html")
+        # view = plotting.view_img(
+        #     fmri_mean, bg_img=mni_template,
+        #     threshold=threshold_90,  # 使用计算出的 90% 阈值
+        #     title="Interactive fMRI Ortho Viewer",
+        #     cmap="RdYlBu_r",
+        #     cut_coords=peak_coords,
+        #     black_bg=False
+        # )
+        # view.save_as_html(path3)
+        # # 这里保留您原有的 CSS 注入逻辑以美化 view_img，但移除了强制黑色背景
+        # results_paths['ortho'] = path3
 
-        path3 = os.path.join(self.output_dir, f"{base_name}_ortho.html")
-        view = plotting.view_img(
-            fmri_mean, bg_img=mni_template,
-            threshold=threshold_90,  # 使用计算出的 90% 阈值
-            title="Interactive fMRI Ortho Viewer",
-            cmap="RdYlBu_r",
-            cut_coords=peak_coords,
-            black_bg=False
-        )
-        view.save_as_html(path3)
-        # 这里保留您原有的 CSS 注入逻辑以美化 view_img，但移除了强制黑色背景
-        results_paths['ortho'] = path3
-
-        # 5. 激活簇表
-        self.log_pyqtSignal.emit("生成激活簇表...")
-        clusters = reporting.get_clusters_table(fmri_mean, stat_threshold=threshold, cluster_threshold=10)
-        clusters.to_csv(os.path.join(self.output_dir, "activation_clusters.csv"), index=False)
+        # # 5. 激活簇表
+        # self.log_pyqtSignal.emit("生成激活簇表...")
+        # clusters = reporting.get_clusters_table(fmri_mean, stat_threshold=threshold, cluster_threshold=10)
+        # clusters.to_csv(os.path.join(self.output_dir, "activation_clusters.csv"), index=False)
 
         # 6. 脑区激活总结JSON
         self.log_pyqtSignal.emit("生成脑区激活总结...")
@@ -278,7 +278,6 @@ class FMRIActivationThread(QThread):
         }
         with open(os.path.join(self.output_dir, "activation_summary.json"), "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4, ensure_ascii=False)
-        return results_paths
 
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths

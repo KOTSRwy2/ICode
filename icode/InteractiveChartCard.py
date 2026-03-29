@@ -59,13 +59,13 @@ class ClickableInfoWidget(QWidget):
         view.titleLabel.setWordWrap(True)
         view.contentLabel.setWordWrap(True)
 
-        view.titleLabel.setFixedWidth(550)
-        view.contentLabel.setFixedWidth(550)
+        view.titleLabel.setFixedWidth(600)
+        view.contentLabel.setFixedWidth(600)
 
-        if self.image_url:
-            view.imageLabel.setFixedWidth(400)
-            view.imageLabel.setFixedHeight(200)
-            view.imageLabel.setScaledContents(True)
+        # if self.image_url:
+        #     view.imageLabel.setFixedWidth(600)
+        #     view.imageLabel.setFixedHeight(200)
+        #     view.imageLabel.setScaledContents(True)
 
         if self.tutorial_url != "":
             button = PrimaryPushButton(self.tr('教程'), self, FluentIcon.BOOK_SHELF)

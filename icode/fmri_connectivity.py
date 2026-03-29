@@ -6,6 +6,9 @@ from nilearn import plotting, image, masking
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.pyplot as plt
+from PlotlyHTMLInjector import PlotlyHTMLInjector
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
@@ -55,6 +58,8 @@ class FMRIConnectivityThread(QThread):
         # 实际生效的窗口/步长（初始化后动态计算）
         self.window_size = None
         self.step_size = None
+
+        self.html_injector = PlotlyHTMLInjector(self.output_dir)
 
     def run(self):
         try:
@@ -160,7 +165,7 @@ class FMRIConnectivityThread(QThread):
 
         return windows
 
-    def _plot_pos_neg_connectivity_pie(self, conn_matrix, output_dir):
+    def _plot_pos_neg_connectivity_pie(self, conn_matrix, output_dir,base_name='fmri'):
         """绘制正负连接比例饼图"""
         self.log_pyqtSignal.emit("计算正负连接比例并绘制饼图...")
 
@@ -176,55 +181,73 @@ class FMRIConnectivityThread(QThread):
         neg_ratio = neg_count / total * 100
         zero_ratio = zero_count / total * 100
 
-        plt.figure(figsize=(10, 8))
-        plt.style.use('dark_background')
-
         labels = []
         sizes = []
         colors = []
         explode = []
 
         if pos_ratio > 0:
-            labels.append(f"Positive ({pos_ratio:.1f}%)")
+            labels.append("正连接")
             sizes.append(pos_count)
-            colors.append('#FF6B6B')
-            explode.append(0.05)
+            colors.append('#E74C3C')  # 柔和红
         if neg_ratio > 0:
-            labels.append(f"Negative ({neg_ratio:.1f}%)")
+            labels.append("负连接")
             sizes.append(neg_count)
-            colors.append('#4ECDC4')
-            explode.append(0.05)
+            colors.append('#3498DB')  # 柔和蓝
         if zero_ratio > 0:
-            labels.append(f"Zero ({zero_ratio:.1f}%)")
+            labels.append("Zero")
             sizes.append(zero_count)
-            colors.append('#95A5A6')
-            explode.append(0)
+            colors.append('#BDC3C7')  # 银灰色
 
-        wedges, texts, autotexts = plt.pie(
-            sizes, labels=labels, colors=colors, explode=explode,
-            autopct='%1.1f%%', shadow=True, startangle=90,
-            textprops={'color': 'white', 'fontsize': 12}
+            # 创建图形
+        fig = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=sizes,
+            marker=dict(
+                colors=colors,
+                line=dict(color='#FFFFFF', width=2)
+            ),
+            hole=0,
+            textinfo='percent',
+            textfont=dict(family="Arial, Helvetica, sans-serif", size=14, color="white"),
+            hoverinfo='label+value+percent',
+            rotation=90,
+            pull=[0.05 if l == "Positive" else 0 for l in labels]
+        )])
+
+        fig.update_layout(
+            title=dict(
+                text=f'<b>正/负连接分布图</b><br><span style="font-size:12px; color:#95A5A6;">{base_name.upper()} 分析</span>',
+                font=dict(family="Arial, Helvetica, sans-serif", size=18, color="#2C3E50"),
+                x=0.5,
+                y=0.95
+            ),
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            margin=dict(l=20, r=20, t=80, b=40),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.1,
+                xanchor="center",
+                x=0.5,
+                font=dict(family="Arial", size=12, color="#2C3E50")
+            ),
+            autosize=True
         )
-        plt.title("Positive/Negative Connectivity Ratio", fontsize=14, color="orangered", pad=20)
 
-        plt.legend(
-            [plt.Rectangle((0, 0), 1, 1, color='#FF6B6B'),
-             plt.Rectangle((0, 0), 1, 1, color='#4ECDC4'),
-             plt.Rectangle((0, 0), 1, 1, color='#95A5A6')],
-            [f"Positive ({pos_ratio:.1f}%)",
-             f"Negative ({neg_ratio:.1f}%)",
-             f"Zero ({zero_ratio:.1f}%)"],
-            loc="center left",
-            bbox_to_anchor=(1, 0, 0.5, 1),
-            facecolor="black",
-            edgecolor="white",
-            labelcolor="white",
-            fontsize=15
-        )
+        pie_path = os.path.join(output_dir, f"{base_name}_connectivity_pie.html")
+        fig.write_html(pie_path, include_plotlyjs=True, full_html=True,
+                       config={'responsive': True, 'displayModeBar': True,
+                               'scrollZoom': False, 'displaylogo': False})
 
-        pie_path = os.path.join(output_dir, "fmri_connectivity_pos_neg_pie.png")
-        plt.savefig(pie_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        plt.close()
+        self.html_injector.inject_all(pie_path, options={
+            'fluent_css': True,
+            'animation_control': False,
+            'debug_info': False,
+            'frame_display': False
+        })
 
         pos_neg_stats = {
             "positive_count": int(pos_count),
@@ -238,7 +261,7 @@ class FMRIConnectivityThread(QThread):
         self.log_pyqtSignal.emit(f"正连接比例：{pos_ratio:.1f}% | 负连接比例：{neg_ratio:.1f}%")
         return pie_path, pos_neg_stats
 
-    def _plot_sliding_window_connectivity(self, roi_timeseries, output_dir, tr=2.0):
+    def _plot_sliding_window_connectivity(self, roi_timeseries, output_dir, tr=2.0,base_name="fmri"):
         """
         绘制滑动窗口功能连接可视化（适配不同数据集）
         :param roi_timeseries: 脑区时间序列 (n_regions, n_timepoints)
@@ -297,8 +320,7 @@ class FMRIConnectivityThread(QThread):
                 "conn_std": conn_std
             })
 
-        plt.figure(figsize=(16, 10))
-        plt.style.use('dark_background')
+        self.log_pyqtSignal.emit("生成滑动窗口指标曲线...")
 
         window_indices = [m["window_idx"] for m in window_metrics]
         start_times = [m["start_time_s"] for m in window_metrics]
@@ -307,121 +329,350 @@ class FMRIConnectivityThread(QThread):
         neg_ratios = [m["neg_ratio"] for m in window_metrics]
         conn_stds = [m["conn_std"] for m in window_metrics]
 
-        # 创建2行2列的子图
-        gs = plt.GridSpec(2, 2, hspace=0.3, wspace=0.3)
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                '平均连接强度',
+                '正负连接比例',
+                '连接异质性',
+                '窗口覆盖示意图'
+            ),
+            specs=[
+                [{"secondary_y": False}, {"secondary_y": True}],
+                [{"secondary_y": False}, {"secondary_y": False}]
+            ],
+            vertical_spacing=0.4,
+            horizontal_spacing=0.08
+        )
+        mean_strengths_clean = np.nan_to_num(mean_strengths, nan=0.0, posinf=0.0, neginf=0.0)
+        # ========== 子图 1：平均连接强度 (row=1, col=1) ==========
+        fig.add_trace(go.Scatter(x=start_times[:1], y=mean_strengths_clean[:1], mode='lines',
+                                 name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1)
+        # Trace 1
+        fig.add_trace(go.Scatter(x=start_times[:1], y=pos_ratios[:1], mode='lines',
+                                 name='正连接', line=dict(color='#00ffff', width=2)), row=1, col=2)
+        # Trace 2
+        fig.add_trace(go.Scatter(x=start_times[:1], y=neg_ratios[:1], mode='lines',
+                                 name='负连接', line=dict(color='#ff6b6b', width=2)), row=1, col=2)
+        # Trace 3
+        conn_stds_clean = np.nan_to_num(conn_stds, nan=0.0, posinf=0.0, neginf=0.0)
+        fig.add_trace(go.Scatter(x=start_times[:1], y=conn_stds_clean[:1], mode='lines',
+                                 name='异质性', line=dict(color='#fe8019', width=2)), row=2, col=1)
 
-        # 子图1：平均连接强度
-        ax1 = plt.subplot(gs[0, 0])
-        ax1.plot(start_times, mean_strengths, color='#FF6B6B', linewidth=2, marker='o', markersize=4)
-        ax1.set_title("平均连接强度 (滑动窗口)", fontsize=12, color="orangered")
-        ax1.set_xlabel("时间 (秒)", color="white")
-        ax1.set_ylabel("平均绝对相关系数", color="white")
-        ax1.tick_params(colors='white')
-        ax1.grid(color='white', alpha=0.2)
-        if len(mean_strengths) > 0:
-            y_min = max(0, np.min(mean_strengths) * 0.9)
-            y_max = np.max(mean_strengths) * 1.1
-            ax1.set_ylim(y_min, y_max)
+        # ========== 子图 4：还原原始循环样式 (静态显示) ==========
+        # Trace 4: 时间轴
+        fig.add_trace(go.Scatter(x=[0, n_timepoints * tr], y=[0, 0], mode='lines',
+                                 line=dict(color='#808080', width=2), showlegend=False, hoverinfo='skip'), row=2, col=2)
 
-        # 子图2：正负连接比例
-        ax2 = plt.subplot(gs[0, 1])
-        ax2.plot(start_times, pos_ratios, color='#FF6B6B', linewidth=2, marker='o', markersize=4, label='正连接')
-        ax2.plot(start_times, neg_ratios, color='#4ECDC4', linewidth=2, marker='s', markersize=4, label='负连接')
-        ax2.set_title("正负连接比例 (滑动窗口)", fontsize=12, color="orangered")
-        ax2.set_xlabel("时间 (秒)", color="white")
-        ax2.set_ylabel("比例 (%)", color="white")
-        ax2.tick_params(colors='white')
-        ax2.legend(facecolor='black', edgecolor='white', labelcolor='white')
-        ax2.grid(color='white', alpha=0.2)
-        ax2.set_ylim(0, 100)
-
-        # 子图3：连接异质性（标准差）
-        ax3 = plt.subplot(gs[1, 0])
-        ax3.plot(start_times, conn_stds, color='#FECA57', linewidth=2, marker='^', markersize=4)
-        ax3.set_title("连接异质性 (滑动窗口)", fontsize=12, color="orangered")
-        ax3.set_xlabel("时间 (秒)", color="white")
-        ax3.set_ylabel("连接值标准差", color="white")
-        ax3.tick_params(colors='white')
-        ax3.grid(color='white', alpha=0.2)
-        if len(conn_stds) > 0:
-            y_min = max(0, np.min(conn_stds) * 0.9)
-            y_max = np.max(conn_stds) * 1.1
-            ax3.set_ylim(y_min, y_max)
-
-        # 子图4：窗口覆盖示意图
-        ax4 = plt.subplot(gs[1, 1])
-
-        ax4.plot([0, n_timepoints * tr], [0, 0], color='white', linewidth=2)
-
+        # 还原你的原始循环：每个窗口都是独立的 Trace (从 Trace 5 开始)
         for i, (start_idx, end_idx) in enumerate(windows):
             start = start_idx * tr
             end = end_idx * tr
-
             color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
-            ax4.fill_between([start, end], [-0.1, -0.1], [0.1, 0.1],
-                             color=color, alpha=0.5, label='窗口' if i == 0 else "")
+            show_legend = (i == 0)  # 只显示第一个窗口的图例防止列表过长
 
-            if i % max(1, n_windows // 10) == 0:  # 自适应标注密度（最多10个标注）
-                ax4.text((start + end) / 2, 0.15, f"W{i}", color='white', ha='center', fontsize=8)
+            fig.add_trace(
+                go.Scatter(
+                    x=[start, end, end, start, start],
+                    y=[-0.1, -0.1, 0.1, 0.1, -0.1],
+                    fill='toself',
+                    fillcolor=color,
+                    line=dict(color=color, width=0),
+                    opacity=0.5,
+                    name='窗口覆盖' if show_legend else '',
+                    showlegend=show_legend,
+                    hoverinfo='x'
+                ),
+                row=2, col=2
+            )
 
-        ax4.set_title("滑动窗口覆盖示意图", fontsize=12, color="orangered")
-        ax4.set_xlabel("时间 (秒)", color="white")
-        ax4.set_ylim(-0.3, 0.3)
-        ax4.set_yticks([])
-        ax4.tick_params(colors='white')
-        ax4.grid(color='white', alpha=0.2)
+        # 记录最后一个用于更新的 Trace 索引（即进度圆点）
+        dot_trace_idx = 5 + len(windows)
+        fig.add_trace(
+            go.Scatter(x=[start_times[0]], y=[0], mode='markers',
+                       marker=dict(size=10, color='white', symbol='diamond'),
+                       name='当前位置', showlegend=False),
+            row=2, col=2
+        )
 
-        sliding_window_path = os.path.join(output_dir, "fmri_sliding_window_metrics.png")
-        plt.savefig(sliding_window_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        plt.close()
+        # ========== 创建帧动画：极其重要，只更新 Trace 0,1,2,3 和 进度点 ==========
+        frames = []
+        for i in range(1, len(start_times) + 1):
+            frames.append(go.Frame(
+                data=[
+                    go.Scatter(x=start_times[:i], y=mean_strengths_clean[:i]),  # Trace 0
+                    go.Scatter(x=start_times[:i], y=pos_ratios[:i]),  # Trace 1
+                    go.Scatter(x=start_times[:i], y=neg_ratios[:i]),  # Trace 2
+                    go.Scatter(x=start_times[:i], y=conn_stds_clean[:i]),  # Trace 3
+                    go.Scatter(x=[start_times[i - 1]], y=[0])  # 进度点
+                ],
+                traces=[0, 1, 2, 3, dot_trace_idx],  # 关键：跳过图四的静态色块索引
+                name=str(i)
+            ))
+        fig.frames = frames
+        # ========== 更新布局 ==========
+        fig.update_layout(
+            updatemenus=[{
+                'type': 'buttons',
+                'showactive': False,
+                'x': 0.5, 'y': -0.15, 'xanchor': 'center',
+                'buttons': [{
+            'label': 'Play',
+            'method': 'animate',
+            'args': [None, {
+                'frame': {'duration': 150, 'redraw': True},
+                'fromcurrent': True,
+                'transition': {'duration': 150, 'easing': 'linear'},
+                'mode': 'immediate'
+            }]
+        }, {
+            'label': 'Pause',
+            'method': 'animate',
+            'args': [[None], {
+                'frame': {'duration': 0, 'redraw': False},
+                'mode': 'immediate',
+                'transition': {'duration': 0}
+            }]
+        }]
+            }],
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=20, r=20, t=60, b=20),  # 增加底部 margin 给按钮留空间
+            font=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            showlegend=True,
+            legend=dict(
+                x=0.95, y=0.90, xanchor='left', yanchor='top',
+                bgcolor='rgba(0,0,0,0)', font=dict(size=10, color="#808080"),
+                orientation='v', traceorder='normal', itemsizing='constant'
+            ),
+            autosize=True
+        )
+
+        # ========== 更新各子图的坐标轴配置 ==========
+        fig.update_xaxes(
+            title='时间 (秒)',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=1, col=1
+        )
+        fig.update_yaxes(
+            title='平均绝对相关系数',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=1, col=1
+        )
+
+        fig.update_xaxes(
+            title='时间 (秒)',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=1, col=2
+        )
+        fig.update_yaxes(
+            title='比例 (%)',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            range=[0, 100],
+            row=1, col=2,
+            secondary_y=False
+        )
+
+        fig.update_xaxes(
+            title='时间 (秒)',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=2, col=1
+        )
+        fig.update_yaxes(
+            title='连接值标准差',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=2, col=1
+        )
+
+        fig.update_xaxes(
+            title='时间 (秒)',
+            showticklabels=True,
+            ticks='outside',
+            gridcolor='rgba(128,128,128,1)',
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
+            row=2, col=2
+        )
+        fig.update_yaxes(
+            showticklabels=True,
+            ticks='outside',
+            range=[-0.3, 0.3],
+            row=2, col=2
+        )
+
+        path_metrics = os.path.join(output_dir, f"{base_name}_sliding_window_metrics.html")
+        fig.write_html(path_metrics, include_plotlyjs=True, full_html=True,
+                               config={'responsive': True, 'displayModeBar': True,
+                                       'scrollZoom': True, 'displaylogo': False, 'autosizable': True})
+
+        self.html_injector.inject_all(path_metrics, options={
+            'fluent_css': True,
+            'animation_control': True,
+            'debug_info': False,
+            'frame_display': False
+        })
 
         # 3. 绘制典型窗口的连接矩阵热力图（自适应选择关键窗口）
         # 按窗口数自适应选择展示数量（最多5个）
+        self.log_pyqtSignal.emit("生成连接矩阵热力图动画...")
+
         n_show = min(5, n_windows)
         key_window_indices = np.linspace(0, n_windows - 1, n_show, dtype=int)
         key_window_indices = sorted(list(set(key_window_indices)))  # 去重
 
-        plt.figure(figsize=(4 * n_show, 4))
-        plt.style.use('dark_background')
-        cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
-                                                 ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
-                                                 N=256)
+        # plt.figure(figsize=(4 * n_show, 4))
+        # plt.style.use('dark_background')
+        # cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
+        #                                          ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
+        #                                          N=256)
+        #
+        # for idx, win_idx in enumerate(key_window_indices):
+            # ax = plt.subplot(1, len(key_window_indices), idx + 1)
+            # conn = window_conn_matrices[win_idx]
+            # im = ax.imshow(conn, cmap=cmap, vmin=-1, vmax=1)
 
+            # win_metric = window_metrics[win_idx]
+        #     ax.set_title(f"窗口 {win_idx}\n{win_metric['start_time_s']:.0f}-{win_metric['end_time_s']:.0f}s",
+        #                  color="white", fontsize=10)
+        #     ax.set_xlabel("脑区索引", color="white", fontsize=8)
+        #     ax.set_ylabel("脑区索引", color="white", fontsize=8)
+        #     ax.tick_params(colors='white', labelsize=8)
+        #
+        # cbar_ax = plt.axes([0.92, 0.15, 0.02, 0.7])
+        # cbar = plt.colorbar(im, cax=cbar_ax, label="皮尔逊相关系数")
+        # cbar.ax.tick_params(labelsize=10, colors='white')
+        # cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
+        #
+        # sliding_window_heatmap_path = os.path.join(output_dir, "fmri_sliding_window_heatmaps.png")
+        # plt.savefig(sliding_window_heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        # plt.close()
+
+        fig_heatmap = make_subplots(
+            rows=1,
+            cols=len(key_window_indices),
+            subplot_titles=[
+                f"窗口 {win_idx}\n{window_metrics[win_idx]['start_time_s']:.0f}-{window_metrics[win_idx]['end_time_s']:.0f}s"
+                for win_idx in key_window_indices
+            ],
+            horizontal_spacing=0.02,
+            vertical_spacing=0.01
+        )
+        # ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000']
+        custom_colorscale = [
+            [0.0, '#0000FF'],
+            [0.25, '#0080FF'],
+            [0.5, '#FFFFFF'],
+            [0.75, '#FF8000'],
+            [1.0, '#FF0000']
+        ]
+
+        # ===== 添加每个子图的热力图 =====
         for idx, win_idx in enumerate(key_window_indices):
-            ax = plt.subplot(1, len(key_window_indices), idx + 1)
             conn = window_conn_matrices[win_idx]
-            im = ax.imshow(conn, cmap=cmap, vmin=-1, vmax=1)
 
-            win_metric = window_metrics[win_idx]
-            ax.set_title(f"窗口 {win_idx}\n{win_metric['start_time_s']:.0f}-{win_metric['end_time_s']:.0f}s",
-                         color="white", fontsize=10)
-            ax.set_xlabel("脑区索引", color="white", fontsize=8)
-            ax.set_ylabel("脑区索引", color="white", fontsize=8)
-            ax.tick_params(colors='white', labelsize=8)
+            fig_heatmap.add_trace(
+                go.Heatmap(
+                    z=conn,
+                    colorscale=custom_colorscale,
+                    zmin=-1,
+                    zmax=1,
+                    showscale=(idx == len(key_window_indices) - 1),
+                    colorbar=dict(
+                        title='皮尔逊相关系数',
+                        tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
+                        # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#FFFFFF"),
+                        len=0.8,
+                        thickness=20
+                    ) if idx == len(key_window_indices) - 1 else None,
+                    hovertemplate='脑区 Y: %{y}<br>脑区 X: %{x}<br>相关系数: %{z:.3f}<extra></extra>',
+                    connectgaps=False
+                ),
+                row=1,
+                col=idx + 1
+            )
 
-        cbar_ax = plt.axes([0.92, 0.15, 0.02, 0.7])
-        cbar = plt.colorbar(im, cax=cbar_ax, label="皮尔逊相关系数")
-        cbar.ax.tick_params(labelsize=10, colors='white')
-        cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
+        fig_heatmap.update_layout(
+            title=dict(
+                text='滑动窗口连接矩阵热力图',
+                font=dict(family="Segoe UI, Microsoft YaHei", size=16, color="rgba(60,60,60,1)"),
+                x=0.5
+            ),
+            paper_bgcolor='#ffffff',
+            plot_bgcolor='#ffffff',
+            margin=dict(l=60, r=60, t=60, b=60),
+            font=dict(family="Segoe UI, Microsoft YaHei", color="rgba(60,60,60,1)"),
+            height=500,
+            width=500 * len(key_window_indices)
+        )
 
-        sliding_window_heatmap_path = os.path.join(output_dir, "fmri_sliding_window_heatmaps.png")
-        plt.savefig(sliding_window_heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        plt.close()
+        # ===== 更新各子图的坐标轴配置 =====
+        for idx in range(1, len(key_window_indices) + 1):
+            fig_heatmap.update_xaxes(
+                title='脑区索引',
+                gridcolor='rgba(60,60,60,1)',
+                tickfont=dict(family="Segoe UI, Microsoft YaHei", size=8, color="#000000"),
+                # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#FFFFFF"),
+                scaleanchor="y" if idx == 1 else None,
+                scaleratio=1,
+                row=1,
+                col=idx,
+                showticklabels=True,
+                ticks='outside',
+            )
+            fig_heatmap.update_yaxes(
+                title='脑区索引',
+                gridcolor='rgba(60,60,60,1)',
+                tickfont=dict(family="Segoe UI, Microsoft YaHei", size=8, color="#000000"),
+                # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#FFFFFF"),
+                row=1,
+                col=idx,
+                showticklabels=True,
+                ticks='outside',
+            )
+
+        path_heatmap = os.path.join(output_dir, f"{base_name}_connectivity_heatmap.html")
+        fig_heatmap.write_html(path_heatmap, include_plotlyjs=True, full_html=True,
+                               config={'responsive': True, 'displayModeBar': True,
+                                       'scrollZoom': True, 'displaylogo': False, 'autosizable': True})
+
+        self.html_injector.inject_all(path_heatmap, options={
+            'fluent_css': True,
+            'animation_control': False,
+            'debug_info': False,
+            'frame_display': False
+        })
 
         # 4. 保存窗口指标到CSV
         metrics_df = pd.DataFrame(window_metrics)
         metrics_csv_path = os.path.join(output_dir, "fmri_sliding_window_metrics.csv")
         metrics_df.to_csv(metrics_csv_path, index=False, encoding='utf-8-sig')
 
-        # 5. 可：保存所有窗口的连接矩阵（用于后续分析）
+        # 5. 保存所有窗口的连接矩阵（用于后续分析）
         np.save(os.path.join(output_dir, "fmri_sliding_window_conn_matrices.npy"),
                 np.array(window_conn_matrices))
 
-        self.log_pyqtSignal.emit(f"滑动窗口指标图已保存：{sliding_window_path}")
-        self.log_pyqtSignal.emit(f"典型窗口连接矩阵图已保存：{sliding_window_heatmap_path}")
+        self.log_pyqtSignal.emit(f"滑动窗口指标图已保存：{path_metrics}")
+        self.log_pyqtSignal.emit(f"典型窗口连接矩阵图已保存：{path_heatmap}")
         self.log_pyqtSignal.emit(f"滑动窗口指标数据已保存：{metrics_csv_path}")
 
-        return sliding_window_path, metrics_csv_path
+        return path_metrics, path_heatmap
 
 
 
@@ -532,39 +783,135 @@ class FMRIConnectivityThread(QThread):
         conn_matrix = np.corrcoef(roi_timeseries)
         self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]}×{conn_matrix.shape[1]} 功能连接矩阵")
 
-        # 2. 绘制连接矩阵热力图
-        plt.figure(figsize=(15, 12))
-        plt.style.use('dark_background')
-        cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
-                                                 ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
-                                                 N=256)
-
-        im = plt.imshow(conn_matrix, cmap=cmap, vmin=-1, vmax=1)
-        cbar = plt.colorbar(im, label="皮尔逊相关系数", shrink=0.8, pad=0.02,
-                            ticks=np.linspace(-1, 1, 9),
-                            fraction=0.046, aspect=20)
-        cbar.ax.tick_params(labelsize=10, colors='white')
-        cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
-        plt.title("fMRI功能连接矩阵（完整AAL脑区）", fontsize=14, color="orangered")
-        plt.xlabel("脑区索引", fontsize=12, color="white")
-        plt.ylabel("脑区索引", fontsize=12, color="white")
-        plt.xticks(color="white")
-        plt.yticks(color="white")
-        heatmap_path = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.png")
-        plt.savefig(heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        plt.close()
-        self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{heatmap_path}")
-
-        # 新增：绘制正负连接饼图
-        pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir)
-
-        # ========== 新增：滑动窗口可视化 ==========
-        self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr)
-
-        self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
             base_name = base_name[:-4]
+
+        # # 2. 绘制连接矩阵热力图
+        # plt.figure(figsize=(15, 12))
+        # plt.style.use('dark_background')
+        # cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
+        #                                          ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
+        #                                          N=256)
+        #
+        # im = plt.imshow(conn_matrix, cmap=cmap, vmin=-1, vmax=1)
+        # cbar = plt.colorbar(im, label="皮尔逊相关系数", shrink=0.8, pad=0.02,
+        #                     ticks=np.linspace(-1, 1, 9),
+        #                     fraction=0.046, aspect=20)
+        # cbar.ax.tick_params(labelsize=10, colors='white')
+        # cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
+        # plt.title("fMRI功能连接矩阵（完整AAL脑区）", fontsize=14, color="orangered")
+        # plt.xlabel("脑区索引", fontsize=12, color="white")
+        # plt.ylabel("脑区索引", fontsize=12, color="white")
+        # plt.xticks(color="white")
+        # plt.yticks(color="white")
+        # heatmap_path = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.png")
+        # plt.savefig(heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
+        # plt.close()
+        # self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{heatmap_path}")
+        results_paths = {}
+
+        custom_colorscale = [
+            [0.0, '#0000FF'],
+            [0.25, '#0080FF'],
+            [0.5, '#FFFFFF'],
+            [0.75, '#FF8000'],
+            [1.0, '#FF0000']
+        ]
+
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=conn_matrix,
+                colorscale=custom_colorscale,
+                zmin=-1,
+                zmax=1,
+                colorbar=dict(
+                    title='皮尔逊相关系数',
+                    # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
+                    tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
+                    tickvals=np.linspace(-1, 1, 9).tolist(),  # 刻度值：-1, -0.75, ..., 1
+                    tickformat='.2f',
+                    len=0.8,
+                    thickness=20,
+                    x=1.02,
+                    xpad=10
+                ),
+                hovertemplate='脑区 Y: %{y}<br>脑区 X: %{x}<br>相关系数：%{z:.3f}<extra></extra>'
+            )
+        )
+
+        # ===== 更新布局）=====
+        fig.update_layout(
+            title=dict(
+                text='fMRI 功能连接矩阵（完整 AAL 脑区）',
+                font=dict(family="Segoe UI, Microsoft YaHei", size=14, color="#000000"),
+                x=0.5
+            ),
+            paper_bgcolor='#FFFFFF',
+            plot_bgcolor='#FFFFFF',
+            # ===== 边距配置 =====
+            margin=dict(l=60, r=100, t=80, b=60),
+            # ===== 字体配置 =====
+            font=dict(family="Segoe UI, Microsoft YaHei", color="#000000", size=12),
+            # ===== 尺寸配置 =====
+            autosize=True,
+            # ===== 其他配置 =====
+            showlegend=False
+        )
+
+        # ===== 更新坐标轴配置 =====
+        fig.update_xaxes(
+            title='脑区索引',
+            # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
+            gridcolor='rgba(128,128,128,0.5)',
+            showticklabels=True,
+            ticks='outside'
+        )
+
+        fig.update_yaxes(
+            title='脑区索引',
+            # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
+            tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
+            gridcolor='rgba(128,128,128,0.2)',
+            showticklabels=True,
+            ticks='outside'
+        )
+
+        # ===== 保存文件 =====
+        path_full_heatmap = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.html")
+        fig.write_html(
+            path_full_heatmap,
+            include_plotlyjs=True,
+            full_html=True,
+            config={
+                'responsive': True,
+                'displayModeBar': True,
+                'scrollZoom': True,
+                'displaylogo': False,
+                'autosizable': True,
+                'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+            }
+        )
+
+        self.html_injector.inject_all(path_full_heatmap, options={
+            'fluent_css': True,
+            'animation_control': False,
+            'debug_info': False,
+            'frame_display': False
+        })
+
+        self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{path_full_heatmap}")
+
+        # 新增：绘制正负连接饼图
+        pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir)
+        results_paths['pie_path'] = pie_path
+        results_paths['path_full_heatmap'] = path_full_heatmap
+        # ========== 新增：滑动窗口可视化 ==========
+        path_metrics, path_heatmap = self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr)
+        results_paths['path_metrics'] = path_metrics
+        results_paths['path_heatmap'] = path_heatmap
+        self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
 
         html_path = os.path.join(self.output_dir, f"{base_name}_connectivity.html")
 
@@ -617,4 +964,6 @@ class FMRIConnectivityThread(QThread):
             # webbrowser.open(f'file://{os.path.abspath(html_path)}')
             self.log_pyqtSignal.emit(f"fMRI功能连接HTML已生成并打开：{html_path}")
 
-        return html_path
+        results_paths['main'] = html_path
+
+        return results_paths

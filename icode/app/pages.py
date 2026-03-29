@@ -165,6 +165,13 @@ class BaseFunctionPage(ScrollArea):
         self.repaint()
         QApplication.processEvents()
 
+    def _clear_previous_cards(self):
+        """清空之前生成的卡片容器（防止多次运行后无限往下叠加）"""
+        if hasattr(self, 'cards_container') and self.cards_container is not None:
+            self.content_layout.removeWidget(self.cards_container)
+            self.cards_container.deleteLater()
+            self.cards_container = None
+
 # ==========================================
 # EEG 源定位页面
 # ==========================================
@@ -418,35 +425,6 @@ class FMRIActivationPage(BaseFunctionPage):
         self.content_layout.addLayout(file_layout)
         self.content_layout.addWidget(self.btn_run)
 
-        test_card = InteractiveChartCard(
-                title="阈值-激活体素数曲线",
-                description="随着统计阈值提高，被判定为“激活”的脑体素数量如何变化，用于选择合适阈值。点击查看更多信息：",
-                html_path=r"E:\web\ICode_\ICode\icode\outputs\fMRI\Filtered_4DVolume_curve.html",
-                detail_text="""该曲线展示了在不同统计阈值（threshold）下，被判定为“激活”的脑体素（voxel）数量变化趋势。
-                在 fMRI 分析中，每一个体素都会被赋予一个统计值（例如 z-score 或 t-value），表示该位置在任务中是否显著激活。通过设置不同的阈值，可以筛选出不同程度显著的脑区。
-                📊 如何理解这条曲线：
-                - 横轴（X轴）：统计阈值（越大表示筛选越严格）
-                - 纵轴（Y轴）：激活体素数量（被认为“显著激活”的脑区域大小）
-
-                📉 曲线特点：
-                - 阈值较低 → 激活体素多（但可能包含噪声）
-                - 阈值较高 → 激活体素少（但更可靠）
-
-                🎯 该图的作用：
-                1. 帮助选择合理的统计阈值（避免过多噪声或过度严格）
-                2. 观察结果对阈值变化的敏感性（稳定性分析）
-                3. 辅助解释脑区激活范围变化
-
-                💡 一般经验：
-                研究中常结合该曲线与统计学方法（如 FDR / Bonferroni 校正）来确定最终阈值，而不是仅凭单一点。""",
-                chart_name = "阈值-激活体素数曲线",
-                image_url = r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
-                tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
-                enable_animation=True,
-            )
-
-        self.content_layout.addWidget(test_card)
-
         StyleSheet.MAIN.apply(self)
 
     def _select_file(self):
@@ -501,61 +479,76 @@ class FMRIActivationPage(BaseFunctionPage):
             # 挂载卡片 1：曲线图
             card1 = InteractiveChartCard(
                 title="阈值-激活体素数曲线",
-                description="随着统计阈值提高，被判定为“激活”的脑体素数量如何变化，用于选择合适阈值。点击查看更多信息：",
+                description="查看不同阈值下，显著激活体素的数量变化，帮你选择合适的分析阈值。点击查看更多信息。",
                 html_path=result_data.get('curve', ''),
-                detail_text="""该曲线展示了在不同统计阈值（threshold）下，被判定为“激活”的脑体素（voxel）数量变化趋势。
-                在 fMRI 分析中，每一个体素都会被赋予一个统计值（例如 z-score 或 t-value），表示该位置在任务中是否显著激活。通过设置不同的阈值，可以筛选出不同程度显著的脑区。
-                📊 如何理解这条曲线：
-                - 横轴（X轴）：统计阈值（越大表示筛选越严格）
-                - 纵轴（Y轴）：激活体素数量（被认为“显著激活”的脑区域大小）
-                
-                📉 曲线特点：
-                - 阈值较低 → 激活体素多（但可能包含噪声）
-                - 阈值较高 → 激活体素少（但更可靠）
-                
-                🎯 该图的作用：
-                1. 帮助选择合理的统计阈值（避免过多噪声或过度严格）
-                2. 观察结果对阈值变化的敏感性（稳定性分析）
-                3. 辅助解释脑区激活范围变化
-                
-                💡 一般经验：
-                研究中常结合该曲线与统计学方法（如 FDR / Bonferroni 校正）来确定最终阈值，而不是仅凭单一点。""",
+                detail_text=
+"""
+本曲线展示了不同统计阈值下，被判定为“显著激活”的脑体素数量变化趋势。
+在fMRI分析中，每个体素会被赋予一个统计值（如z-score），通过设置不同阈值，可筛选出不同显著性水平的脑区。
+
+如何理解：
+- 横轴：统计阈值（数值越大，筛选标准越严格）
+- 纵轴：被判定为“显著激活”的体素总数
+
+曲线特点：
+- 阈值较低：激活体素数量多，但可能包含噪声
+- 阈值较高：激活体素数量少，但结果的统计可靠性更高
+
+核心用途：
+1. 辅助选择合理的统计阈值，平衡噪声与结果的敏感性
+2. 评估激活结果对阈值变化的稳定性，判断数据质量
+3. 结合FDR/ Bonferroni等校正方法，确定最终分析阈值                
+"""                ,
                 chart_name = "阈值-激活体素数曲线",
                 image_url = r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
-                tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
+                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                 enable_animation=True,
             )
             card1.web_view.setFixedHeight(500)
             # 挂载卡片 2：直方图
             card2 = InteractiveChartCard(
                 title="激活强度分布直方图",
-                description="点击查看频数分布释义",
+                description="全脑激活强度分布，红色虚线为90%高激活阈值，可快速定位显著脑区。点击查看更多信息。",
                 html_path=result_data.get('histogram', ''),
-                detail_text="【详细说明】此直方图反映了全脑激活体素强度的频数分布。图中的垂直虚线代表系统为您计算的 95% 置信区间阈值，虚线右侧即为极具统计显著性的高亮激活脑区。",
+                detail_text=
+"""
+本图展示了全脑体素的激活强度频数分布，可直观反映数据整体特征。
+图中红色虚线为系统计算的90%分位数阈值线，用于快速定位高显著性激活区域。
+
+如何理解：
+- 横轴：激活强度（数值越大，体素的任务响应越强）
+- 纵轴：对应激活强度的体素数量
+- 红色虚线右侧：代表全脑内统计上最显著的高响应体素
+
+核心用途：
+1. 快速评估数据分布形态与整体质量
+2. 量化不同激活强度区间的体素占比
+3. 为阈值选择提供数据分布依据
+""",
                 chart_name = "阈值-激活体素数曲线",
                 image_url = r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
-                tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                # tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
                 enable_animation=False,
             )
             card2.web_view.setFixedHeight(500)
-            # 挂载卡片 3：交互切片脑图
-            card3 = InteractiveChartCard(
-                title="三正交切片交互脑图 (最高激活点)",
-                description="点击查看 3D 视图交互操作指南",
-                html_path=result_data.get('ortho', ''),
-                detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。",
-                chart_name="阈值-激活体素数曲线",
-                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
-                tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
-            )
-            print(result_data)
+            # # 挂载卡片 3：交互切片脑图
+            # card3 = InteractiveChartCard(
+            #     title="三正交切片交互脑图 (最高激活点)",
+            #     description="点击查看 3D 视图交互操作指南",
+            #     html_path=result_data.get('ortho', ''),
+            #     detail_text="【操作指南】\n1. 旋转：鼠标左键按住切片区域外侧进行拖拽。\n2. 缩放：在图表区域内滚动鼠标滚轮。\n3. 定位：使用鼠标左键单击三个切片内的任意一点，十字准星将自动同步至该三维坐标。",
+            #     chart_name="阈值-激活体素数曲线",
+            #     image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+            #     tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            # )
+            # print(result_data)
             # 赋予脑图卡片更大的高度
-            card3.web_view.setFixedHeight(500)
+            # card3.web_view.setFixedHeight(500)
 
             # 添加到垂直布局
             self.cards_layout.addWidget(card1)
             self.cards_layout.addWidget(card2)
-            self.cards_layout.addWidget(card3)
+            # self.cards_layout.addWidget(card3)
 
             # 将卡片容器添加到当前页面的主内容区底部
             self.content_layout.addWidget(self.cards_container)
@@ -567,14 +560,6 @@ class FMRIActivationPage(BaseFunctionPage):
         else:
             log_manager.add_log(f"fMRI 处理失败: {result_data}", self.module_name)
             self.show_error_dialog("发生异常", f"预处理或生成时报错:\n{result_data}")
-
-
-    def _clear_previous_cards(self):
-        """清空之前生成的卡片容器（防止多次运行后无限往下叠加）"""
-        if hasattr(self, 'cards_container') and self.cards_container is not None:
-            self.content_layout.removeWidget(self.cards_container)
-            self.cards_container.deleteLater()
-            self.cards_container = None
 
 # ==========================================
 # fMRI 连接分析页面
@@ -627,15 +612,143 @@ class FMRIConnectivityPage(BaseFunctionPage):
         self.worker.finished_sig.connect(self._on_task_finished)
         self.worker.start()
 
-    def _on_task_finished(self, success, out_path):
+    def _on_task_finished(self, success, result_data):
         self.set_running_state(False, "执行完成" if success else "执行失败")
-        if success:
-            log_manager.add_log(f"fMRI 连接图生成完成: {out_path}", self.module_name)
-            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{out_path}")
-            self.show_html_in_subwindow(out_path, "fMRI 功能连接可视化")
+        if success and result_data is not None:
+            result_data = ast.literal_eval(result_data)
+
+            main = result_data["main"]
+            log_manager.add_log(f"fMRI 连接图生成完成: {main}", self.module_name)
+            self.show_success_dialog("计算完毕", f"多图交互HTML分析报告已投递:\n{main}")
+            self.show_html_in_subwindow(main, "fMRI 功能连接可视化")
+
+            # 清理之前可能残留的卡片
+            self._clear_previous_cards()
+
+            # 创建一个用于容纳卡片的布局
+            self.cards_container = QWidget()
+            self.cards_container.setObjectName("CardsContainer")
+            self.cards_layout = QVBoxLayout(self.cards_container)
+            self.cards_layout.setContentsMargins(0, 16, 0, 0)
+            self.cards_layout.setSpacing(16)
+
+            # 挂载卡片 1：正负连接饼图
+            card1 = InteractiveChartCard(
+                title="正负功能连接比例饼图",
+                description="正负连接比例饼图，红色代表协同激活，青色代表反向调节。点击查看更多信息。",
+                html_path=result_data.get('pie_path', ''),
+                detail_text=
+"""
+本图基于全脑功能连接矩阵，统计所有脑区连接对中，正相关、负相关及零相关连接的占比分布情况。
+
+如何理解：
+- 红色扇区（Positive）：代表正相关连接占比，反映脑区间协同激活与同步活动
+- 青色扇区（Negative）：代表负相关连接占比，反映脑区间功能拮抗与抑制性交互
+- 灰色扇区（Zero）：代表无显著线性关联的连接占比
+
+核心用途：
+1. 量化评估大脑功能网络的兴奋-抑制平衡状态
+2. 分析任务态或静息态下脑网络整体调控机制的变化
+3. 为脑网络整合性、稳定性及病理状态（如精神疾病）的研究提供宏观指标
+""",
+                chart_name="正负功能连接比例饼图",
+                image_url=r"E:\web\ICode_\ICode\icode\app\resource\images\fmri_activation_crue.jpg",
+                # tutorial_url="https://blog.csdn.net/sky77/article/details/149389952",
+            )
+            card1.web_view.setFixedHeight(500)
+            # 挂载卡片 2：滑动窗口功能连接动态指标图
+            card2 = InteractiveChartCard(
+                title="滑动窗口功能连接动态指标图",
+                description="滑动窗口动态功能连接，展示脑网络连接强度、平衡度与稳定性随时间的变化。点击查看更多信息。",
+                html_path=result_data.get('path_metrics', ''),
+                detail_text=
+"""
+本图通过在时间轴上滑动分析窗口，动态计算全脑功能连接的多维度统计指标，全面揭示脑网络随时间变化的时序特征与动态规律。
+
+如何理解：
+- 平均连接强度（左上）：横轴为时间，纵轴为平均绝对相关系数，反映整体连接水平
+- 正负连接比例（右上）：红线为正连接比例，青线为负连接比例，反映网络兴奋-抑制平衡
+- 连接异质性（左下）：横轴为时间，纵轴为连接值标准差，反映脑网络连接模式的多样性
+- 滑动窗口覆盖示意（右下）：彩色条块展示每个分析窗口在时间轴上的位置与重叠关系
+
+核心用途：
+1. 评估脑网络连接强度的时间稳定性与动态波动趋势
+2. 分析任务相关的脑网络兴奋/抑制平衡的动态转换机制
+3. 量化脑网络状态的复杂性，为动态功能连接研究提供多维量化依据
+""",
+                chart_name="滑动窗口功能连接动态指标图",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+                enable_animation=True,
+            )
+            card2.web_view.setFixedHeight(500)
+            # 挂载卡片 3：多时间窗口功能连接热力图
+            card3 = InteractiveChartCard(
+                title="多时间窗口功能连接热力图",
+                description="不同时间窗口连接热力图，观察脑网络随时间的动态变化。点击查看更多信息。",
+                html_path=result_data.get('path_heatmap', ''),
+                detail_text=
+"""
+本图选取全时间序列中具有代表性的关键时间窗口，分别展示各时段内的功能连接矩阵，用于直观呈现脑网络的动态重组过程。
+
+如何理解：
+- 每一个子图：对应一个独立的时间窗口（如窗口0对应0-60s, 窗口10 对应196-256s）
+- 时间标注：显示每个窗口对应的时间范围，便于对应分析
+- 颜色深浅：代表该时间点脑区间连接强度的高低
+- 对比观察：通过多张子图的横向对比，可观察连接模式的时空演变
+
+核心用途：
+1. 追踪任务执行过程中，脑网络连接模式的动态演变与状态切换
+2. 识别脑网络连接强度发生显著变化的关键时间节点
+3. 验证动态功能连接分析的稳定性，观察不同时段网络结构的差异
+""",
+                chart_name="多时间窗口功能连接热力图",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            )
+
+            card3.web_view.setFixedHeight(550)
+
+            card4 = InteractiveChartCard(
+                title="全脑功能连接矩阵",
+                description="AAL 脑区功能连接热力图，颜色代表脑区同步强度，红色为正相关、蓝色为负相关，越红 / 蓝关联越强。点击查看更多信息。",
+                html_path=result_data.get('path_full_heatmap', ''),
+                detail_text=
+"""
+本图基于AAL标准脑区分割模板，计算全脑两两脑区时间序列之间的皮尔逊相关系数，构建全脑功能连接矩阵。
+
+如何理解：
+- 横轴/纵轴：脑区索引，对应AAL脑区分割模板中的83个脑区
+- 颜色刻度：从蓝色(-1.0)到红色(1.0)，代表皮尔逊相关系数大小
+- 颜色越红：脑区间活动同步性越强，正相关越高
+- 颜色越蓝：脑区间活动负相关程度越高
+- 对角线元素：代表脑区与自身的相关值，恒为1，无生物学意义
+
+核心用途：
+1. 直观识别全脑功能网络的模块化结构与高密度连接通路
+2. 快速定位核心枢纽脑区与异常连接（如显著负连接区域）
+3. 为后续动态连接分析、图论网络属性计算及组间统计比较提供基础数据
+""",
+                chart_name="全脑功能连接矩阵（AAL 脑区）",
+                image_url=r"E:\web\ICode_\PyQt-Fluent-Widgets-1.7.0\examples\gallery\app\resource\images\SBR.jpg",
+                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
+            )
+            card4.web_view.setFixedHeight(500)
+            # 添加到垂直布局
+            self.cards_layout.addWidget(card1)
+            self.cards_layout.addWidget(card2)
+            self.cards_layout.addWidget(card3)
+            self.cards_layout.addWidget(card4)
+
+            # 将卡片容器添加到当前页面的主内容区底部
+            self.content_layout.addWidget(self.cards_container)
+
+            self.view.updateGeometry()
+            self.update()
+            QApplication.processEvents()
         else:
-            log_manager.add_log(f"连接计算失败: {out_path}", self.module_name)
-            self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{out_path}")
+            log_manager.add_log(f"连接计算失败: {result_data}", self.module_name)
+            self.show_error_dialog("发生异常", f"提取或矩阵计算报错:\n{result_data}")
 
 
 # ==========================================
