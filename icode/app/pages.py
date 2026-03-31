@@ -799,6 +799,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 enable_animation=True,
             )
             card1.web_view.setFixedHeight(500)
+            card1.web_view.setObjectName(f"web_view_{id(card1)}")
             # 挂载卡片 2：直方图
             card2 = InteractiveChartCard(
                 title="激活强度分布直方图",
@@ -825,7 +826,7 @@ class FMRIActivationPage(BaseFunctionPage):
                 enable_animation=False,
             )
             card2.web_view.setFixedHeight(500)
-
+            card2.web_view.setObjectName(f"web_view_{id(card2)}")
             # 添加到垂直布局
             self.cards_layout.addWidget(card1)
             self.cards_layout.addWidget(card2)

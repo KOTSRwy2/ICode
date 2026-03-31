@@ -1,4 +1,5 @@
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings, QWebEngineDownloadItem
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings, QWebEngineDownloadItem, \
+    QWebEngineProfile
 from PyQt5.QtCore import QUrl, pyqtSignal
 from PyQt5.QtWidgets import QFileDialog, QWidget, QVBoxLayout, QMessageBox
 import os
@@ -25,6 +26,8 @@ class CustomWebEnginePage(QWebEnginePage):
 
 class CustomWebEngineView(QWebEngineView):
     """支持下载和新窗口跳转的 WebEngineView """
+    _download_signal_connected = False
+    _profile_cache = {}
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -33,14 +36,26 @@ class CustomWebEngineView(QWebEngineView):
     def _setup_webengine(self):
         """配置 WebEngine 支持下载和跳转"""
         # 获取当前 profile
-        profile = self.page().profile()
+        parent_id = id(self.parent()) if self.parent() else id(self)
 
-        # PyQt5: 连接下载请求信号 (使用 QWebEngineDownloadItem)
-        profile.downloadRequested.connect(self._on_download_requested)
+        if parent_id not in self._profile_cache:
+            # 创建新的独立 profile
+            profile = QWebEngineProfile(self)
+            profile.setPersistentStoragePath(
+                os.path.join(os.path.expanduser("~"), ".cache", f"webengine_{parent_id}")
+            )
+            self._profile_cache[parent_id] = profile
+        else:
+            profile = self._profile_cache[parent_id]
 
-        # 设置自定义 Page 以支持新窗口
+        # 设置自定义 Page
         custom_page = CustomWebEnginePage(profile, self)
         self.setPage(custom_page)
+
+        # ← 关键修复 3：只在 profile 第一次创建时连接信号
+        if not hasattr(profile, '_download_handler_connected'):
+            profile.downloadRequested.connect(self._on_download_requested)
+            profile._download_handler_connected = True
 
         # 启用相关设置
         settings = self.settings()
@@ -51,8 +66,12 @@ class CustomWebEngineView(QWebEngineView):
 
     def _on_download_requested(self, download: QWebEngineDownloadItem):
         """处理下载请求 - PyQt5 使用 QWebEngineDownloadItem"""
+        if hasattr(download, '_processed') and download._processed:
+            return
+        download._processed = True
         # 获取建议的文件名
         suggested_filename = download.downloadFileName()
+
 
         # 弹出文件保存对话框
         default_path = os.path.join(os.path.expanduser("~"), "Downloads", suggested_filename)
