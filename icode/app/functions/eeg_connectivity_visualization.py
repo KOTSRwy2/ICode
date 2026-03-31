@@ -134,7 +134,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
             zmin=0,
             zmax=np.percentile(con_matrix, 98),
             colorbar=dict(
-                title='Correlation<br>Coefficient',
+                title='相关系数',
                 tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
                 tickformat='.2f',
                 len=0.8,
@@ -142,7 +142,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
                 x=1.02,
                 xpad=10
             ),
-            hovertemplate='Region Y: %{y}<br>Region X: %{x}<br>Correlation: %{z:.3f}<extra></extra>',
+            hovertemplate='脑区 Y: %{y}<br>脑区 X: %{x}<br>相关性: %{z:.3f}<extra></extra>',
             showscale=True
         )
     )
@@ -150,7 +150,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
     # ===== 更新布局 =====
     fig.update_layout(
         title=dict(
-            text=f'Connectivity Matrix ({bdf_stem})',
+            text=f'功能连接矩阵 ({bdf_stem})',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -164,7 +164,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
 
     # ===== 更新坐标轴配置 =====
     fig.update_xaxes(
-        title='Brain Region Index',
+        title='脑区索引',
         tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -244,13 +244,13 @@ def _plot_fc_node_degree(con_matrix, label_names, output_dir, bdf_stem, html_inj
                 color='#13c2c2',
                 line=dict(color='#000000', width=0.5)
             ),
-            hovertemplate='Region: %{y}<br>Weighted Degree: %{x:.3f}<extra></extra>'
+            hovertemplate='脑区: %{y}<br>加权度: %{x:.3f}<extra></extra>'
         )
     )
 
     fig.update_layout(
         title=dict(
-            text=f'Network Hubs Top {num_top}',
+            text=f'网络核心枢纽Top{num_top}',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -263,7 +263,7 @@ def _plot_fc_node_degree(con_matrix, label_names, output_dir, bdf_stem, html_inj
     )
 
     fig.update_xaxes(
-        title='Weighted Node Degree',
+        title='加权节点度',
         tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -272,7 +272,7 @@ def _plot_fc_node_degree(con_matrix, label_names, output_dir, bdf_stem, html_inj
     )
 
     fig.update_yaxes(
-        title='Brain Region',
+        title='脑区名称',
         tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -333,13 +333,13 @@ def _plot_fc_distribution(con_matrix, output_dir, bdf_stem,html_injector):
                 line=dict(color='#FFFFFF', width=0.5)
             ),
             opacity=0.7,
-            hovertemplate='Correlation: %{x:.3f}<br>Density: %{y}<extra></extra>'
+            hovertemplate='相关性: %{x:.3f}<br>密度: %{y}<extra></extra>'
         )
     )
 
     fig.update_layout(
         title=dict(
-            text=f'Connectivity Weight Distribution ({bdf_stem})',
+            text=f'连接强度分布 ({bdf_stem})',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -352,7 +352,7 @@ def _plot_fc_distribution(con_matrix, output_dir, bdf_stem,html_injector):
     )
 
     fig.update_xaxes(
-        title='Correlation Coefficient',
+        title='相关系数',
         tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -361,7 +361,7 @@ def _plot_fc_distribution(con_matrix, output_dir, bdf_stem,html_injector):
     )
 
     fig.update_yaxes(
-        title='Density',
+        title='分布密度',
         tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -448,8 +448,8 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
                 opacity=0.3,
                 line=dict(color='#000000', width=0.5)
             ),
-            hovertemplate='Distance: %{x:.2f} mm<br>Connectivity: %{y:.3f}<extra></extra>',
-            name='Data Points'
+            hovertemplate='物理距离: %{x:.2f} mm<br>相关性: %{y:.3f}<extra></extra>',
+            name='数据点'
         )
     )
 
@@ -466,14 +466,14 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
                 y=trend_y,
                 mode='lines',
                 line=dict(color='#FF0000', width=2, dash='dash'),
-                name='Trend Line',
-                hovertemplate='Distance: %{x:.2f} mm<br>Trend: %{y:.3f}<extra></extra>'
+                name='趋势线',
+                hovertemplate='物理距离: %{x:.2f} mm<br>趋势线: %{y:.3f}<extra></extra>'
             )
         )
 
     fig.update_layout(
         title=dict(
-            text='Distance vs. Connectivity Strength',
+            text='距离-强度相关性散点图',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -494,7 +494,7 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
     )
 
     fig.update_xaxes(
-        title='Physical Distance (mm)',
+        title='物理距离 (mm)',
         tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,
@@ -503,7 +503,7 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
     )
 
     fig.update_yaxes(
-        title='Connectivity (Correlation)',
+        title='连接强度 (相关系数)',
         tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
         gridcolor='rgba(128,128,128,0.2)',
         showticklabels=True,

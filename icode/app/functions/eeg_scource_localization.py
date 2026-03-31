@@ -157,7 +157,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
                 line=dict(color='#1677ff', width=2),
                 fill='tozeroy',
                 fillcolor='rgba(22, 119, 255, 0.1)',
-                name='Mean Source Activity'
+                name='平均源活动强度'
             )
         ],
         frames=frames
@@ -194,7 +194,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
         }]
             }],
         title=dict(
-            text=f'Source Time Course ({band_label})',
+            text=f'源活动时间序列 ({band_label})',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -205,7 +205,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
         showlegend=False,
         autosize=True,
         xaxis=dict(
-            title='Time (ms)',
+            title='时间 (ms)',
             tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
             gridcolor='rgba(128,128,128,0.2)',
             showticklabels=True,
@@ -213,7 +213,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
             showgrid=True
         ),
         yaxis=dict(
-            title='Mean Absolute Amplitude',
+            title='平均绝对振幅',
             tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
             gridcolor='rgba(128,128,128,0.2)',
             showticklabels=True,
@@ -347,13 +347,13 @@ def _plot_region_activation_bar_plotly(stc, subjects_dir, output_dir, bdf_stem, 
                     color='#ffa940',
                     line=dict(color='#000000', width=0.5)
                 ),
-                hovertemplate='Region: %{y}<br>Relative Intensity: %{x:.3f}<extra></extra>'
+                hovertemplate='脑区: %{y}<br>相对强度: %{x:.3f}<extra></extra>'
             )
         )
 
         fig.update_layout(
             title=dict(
-                text='Top 15 Brain Regions Activation (Normalized)',
+                text='脑区激活排名Top15',
                 font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
                 x=0.5
             ),
@@ -364,7 +364,7 @@ def _plot_region_activation_bar_plotly(stc, subjects_dir, output_dir, bdf_stem, 
             autosize=True,
             showlegend=False,
             xaxis=dict(
-                title='Relative Intensity (0-1)',
+                title='相对强度 (0-1)',
 
                 tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
                 gridcolor='rgba(128,128,128,0.2)',
@@ -374,7 +374,7 @@ def _plot_region_activation_bar_plotly(stc, subjects_dir, output_dir, bdf_stem, 
                 range=[0, 1.1]
             ),
             yaxis=dict(
-                title='Brain Region',
+                title='脑区名称',
                 tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
                 gridcolor='rgba(128,128,128,0.2)',
                 showticklabels=True,
@@ -449,7 +449,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
                 line=dict(color='#73d13d', width=2),
                 fill='tozeroy',
                 fillcolor='rgba(115, 209, 61, 0.1)',
-                name='Relative Power'
+                name='相对功率'
             )
         ],
         frames=frames
@@ -486,7 +486,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
         }]
             }],
         title=dict(
-            text='Source Relative Power Spectrum (Normalized dB)',
+            text='源活动相对功率谱 (归一化 dB)',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
             x=0.5
         ),
@@ -497,7 +497,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
         autosize=True,
         showlegend=False,
         xaxis=dict(
-            title='Frequency (Hz)',
+            title='频率 (Hz)',
             tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
             gridcolor='rgba(128,128,128,0.2)',
             showticklabels=True,
@@ -506,7 +506,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
             range=[1, 45]
         ),
         yaxis=dict(
-            title='Relative Power (dB)',
+            title='相对功率 (dB)',
             tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
             gridcolor='rgba(128,128,128,0.2)',
             showticklabels=True,
