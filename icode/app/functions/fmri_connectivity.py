@@ -41,8 +41,8 @@ class FMRIConnectivityThread(QThread):
 
     def __init__(self, fmri_nifti_path, tr=2.0, mask_path=None,
                  window_strategy="time_based",
-                 window_param=60,  # 时间
-                 step_strategy="auto",  # 步长
+                 window_param=60,
+                 step_strategy="fixed",
                  step_param=10):
         super().__init__()
         self.fmri_nifti_path = fmri_nifti_path
@@ -290,24 +290,72 @@ class FMRIConnectivityThread(QThread):
 
         window_conn_matrices = []
 
+        # for window_idx, (start_idx, end_idx) in enumerate(windows):
+        #     window_ts = roi_timeseries[:, start_idx:end_idx]
+        #
+        #     window_conn = np.corrcoef(window_ts)
+        #     window_conn_matrices.append(window_conn)
+        #
+        #     mask = np.eye(n_regions, dtype=bool)
+        #     conn_vals = window_conn[~mask]
+        #
+        #     # 指标1：平均连接强度
+        #     mean_conn_strength = np.mean(np.abs(conn_vals))
+        #     # 指标2：正连接比例
+        #     pos_ratio = np.sum(conn_vals > 0) / len(conn_vals) * 100
+        #     # 指标3：负连接比例
+        #     neg_ratio = np.sum(conn_vals < 0) / len(conn_vals) * 100
+        #     # 指标4：连接矩阵的标准差（异质性）
+        #     conn_std = np.std(conn_vals)
+        #
+        #     start_time = start_idx * tr
+        #     end_time = end_idx * tr
+        #
+        #     window_metrics.append({
+        #         "window_idx": window_idx,
+        #         "start_time_s": start_time,
+        #         "end_time_s": end_time,
+        #         "mean_conn_strength": mean_conn_strength,
+        #         "pos_ratio": pos_ratio,
+        #         "neg_ratio": neg_ratio,
+        #         "conn_std": conn_std
+        #     })
         for window_idx, (start_idx, end_idx) in enumerate(windows):
             window_ts = roi_timeseries[:, start_idx:end_idx]
 
-            window_conn = np.corrcoef(window_ts)
+            # 检查窗口内脑区波动
+            window_std = window_ts.std(axis=1)
+            valid_window_mask = window_std > 1e-100
+
+            if np.sum(valid_window_mask) < 2:
+                mean_conn_strength = 0.0
+                pos_ratio = 0.0
+                neg_ratio = 0.0
+                conn_std = 0.0
+                window_conn = np.zeros((n_regions, n_regions))
+            else:
+                # 只用有效脑区算相关
+                wt_valid = window_ts[valid_window_mask]
+                corr = np.corrcoef(wt_valid)
+
+                # 填回原尺寸
+                window_conn = np.zeros((n_regions, n_regions))
+                valid_idx = np.where(valid_window_mask)[0]
+                window_conn[np.ix_(valid_idx, valid_idx)] = corr
+
+                # 计算指标（只看上三角，不含对角线）
+                mask = np.triu(np.ones_like(window_conn, dtype=bool), k=1)
+                vals = window_conn[mask]
+                mean_conn_strength = np.mean(np.abs(vals))
+                pos_ratio = np.sum(vals > 0) / len(vals) * 100
+                neg_ratio = np.sum(vals < 0) / len(vals) * 100
+                conn_std = np.std(vals)
+
+            # 保存矩阵
+            np.fill_diagonal(window_conn, 1.0)  # 加这行
             window_conn_matrices.append(window_conn)
 
-            mask = np.eye(n_regions, dtype=bool)
-            conn_vals = window_conn[~mask]
-
-            # 指标1：平均连接强度
-            mean_conn_strength = np.mean(np.abs(conn_vals))
-            # 指标2：正连接比例
-            pos_ratio = np.sum(conn_vals > 0) / len(conn_vals) * 100
-            # 指标3：负连接比例
-            neg_ratio = np.sum(conn_vals < 0) / len(conn_vals) * 100
-            # 指标4：连接矩阵的标准差（异质性）
-            conn_std = np.std(conn_vals)
-
+            # 时间
             start_time = start_idx * tr
             end_time = end_idx * tr
 
@@ -320,7 +368,6 @@ class FMRIConnectivityThread(QThread):
                 "neg_ratio": neg_ratio,
                 "conn_std": conn_std
             })
-
         self.log_pyqtSignal.emit("生成滑动窗口指标曲线...")
 
         window_indices = [m["window_idx"] for m in window_metrics]
@@ -347,17 +394,17 @@ class FMRIConnectivityThread(QThread):
         )
         mean_strengths_clean = np.nan_to_num(mean_strengths, nan=0.0, posinf=0.0, neginf=0.0)
         # ========== 子图 1：平均连接强度 (row=1, col=1) ==========
-        fig.add_trace(go.Scatter(x=start_times[:1], y=mean_strengths_clean[:1], mode='lines',legend='legend', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=mean_strengths_clean[:1], mode='lines',legend='legend', showlegend=True,
                                  name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1,)
         # Trace 1
-        fig.add_trace(go.Scatter(x=start_times[:1], y=pos_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=pos_ratios[:1], mode='lines',legend='legend2', showlegend=True,
                                  name='正连接', line=dict(color='#E74C3C', width=2)), row=1, col=2)
         # Trace 2
-        fig.add_trace(go.Scatter(x=start_times[:1], y=neg_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=neg_ratios[:1], mode='lines',legend='legend2', showlegend=True,
                                  name='负连接', line=dict(color='#3498DB', width=2)), row=1, col=2)
         # Trace 3
         conn_stds_clean = np.nan_to_num(conn_stds, nan=0.0, posinf=0.0, neginf=0.0)
-        fig.add_trace(go.Scatter(x=start_times[:1], y=conn_stds_clean[:1], mode='lines',legend='legend3', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=conn_stds_clean[:1], mode='lines',legend='legend3', showlegend=True,
                                  name='异质性', line=dict(color='#fe8019', width=2)), row=2, col=1)
 
         # ========== 子图 4：还原原始循环样式 (静态显示) ==========
@@ -635,7 +682,7 @@ class FMRIConnectivityThread(QThread):
 
         # ===== 添加每个子图的热力图 =====
         for idx, win_idx in enumerate(key_window_indices):
-            conn = window_conn_matrices[win_idx]
+            conn = window_conn_matrices[win_idx][:83, :83]
 
             fig_heatmap.add_trace(
                 go.Heatmap(
@@ -784,10 +831,14 @@ class FMRIConnectivityThread(QThread):
 
         roi_timeseries = roi_timeseries[valid_region_mask]
         unique_labels = unique_labels[valid_region_mask]
+        n_valid_regions = len(unique_labels)
+        self.log_pyqtSignal.emit(f"有效脑区数量（用于计算）：{n_valid_regions}")
 
-        self.log_pyqtSignal.emit("获取脑区坐标并进行过滤...")
-        aal_coords = []
-        valid_coord_indices = []
+        self.log_pyqtSignal.emit("生成脑区坐标...")
+
+        aal_coords_full = []  # 计算用：全脑区
+        aal_coords_3d = []  # 3D图用：过滤后
+        valid_indices_3d = []
 
         X_RANGE = (-80, 80)
         Y_RANGE = (-120, 80)
@@ -799,39 +850,40 @@ class FMRIConnectivityThread(QThread):
                 center_voxel = np.array(
                     [np.mean(region_voxels[0]), np.mean(region_voxels[1]), np.mean(region_voxels[2])])
                 center_world = nib.affines.apply_affine(roi_img.affine, center_voxel)
-                region_name = aal_labels[i] if i < len(aal_labels) else f"ROI_{int(label)}"
+                aal_coords_full.append(center_world)
 
+                # 仅在这里过滤，只给3D图使用
                 x, y, z = center_world
                 if (X_RANGE[0] <= x <= X_RANGE[1]):
                     if not ((y < -30 and z < -20) or (-100 < y < -30 and -20 < x < 20 and z < 20)):
-                        aal_coords.append(center_world)
-                        valid_coord_indices.append(i)
+                        aal_coords_3d.append(center_world)
+                        valid_indices_3d.append(i)
 
-        if len(aal_coords) == 0:
-            self.log_pyqtSignal.emit("警告：所有坐标都被过滤，使用未过滤的坐标")
-            aal_coords = []
-            valid_coord_indices = []
-            for i, label in enumerate(unique_labels):
-                region_voxels = np.where(roi_data == label)
-                if len(region_voxels[0]) > 0:
-                    center_voxel = np.array(
-                        [np.mean(region_voxels[0]), np.mean(region_voxels[1]), np.mean(region_voxels[2])])
-                    center_world = nib.affines.apply_affine(roi_img.affine, center_voxel)
-                    aal_coords.append(center_world)
-                    valid_coord_indices.append(i)
-            aal_coords = np.array(aal_coords)
-        else:
-            aal_coords = np.array(aal_coords)
+        aal_coords_full = np.array(aal_coords_full)
+        aal_coords_3d = np.array(aal_coords_3d) if len(aal_coords_3d) > 0 else aal_coords_full
 
-        if len(valid_coord_indices) < len(unique_labels):
-            roi_timeseries = roi_timeseries[valid_coord_indices]
-            unique_labels = unique_labels[valid_coord_indices]
+        self.log_pyqtSignal.emit(f"3D脑图将使用过滤后的 {len(aal_coords_3d)} 个脑区")
 
-        self.log_pyqtSignal.emit(f"最终保留 {len(aal_coords)} 个脑区用于可视化")
+        roi_std = np.std(roi_timeseries, axis=1)
+        valid_roi_mask = roi_std > 1e-10
+        self.log_pyqtSignal.emit(f"有效脑区：{np.sum(valid_roi_mask)}/{len(roi_timeseries)}")
 
-        self.log_pyqtSignal.emit("计算功能连接矩阵...")
-        conn_matrix = np.corrcoef(roi_timeseries)
-        self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]}×{conn_matrix.shape[1]} 功能连接矩阵")
+        if np.sum(valid_roi_mask) < 2:
+            raise ValueError("有效脑区不足2个，无法计算相关矩阵")
+
+        # 只对有效脑区计算相关
+        valid_ts = roi_timeseries[valid_roi_mask]
+        valid_corr = np.corrcoef(valid_ts)
+        np.fill_diagonal(valid_corr, 1.0)
+
+        # 回填到完整矩阵，无效位置填0
+        conn_matrix = np.zeros((len(roi_timeseries), len(roi_timeseries)))
+        conn_matrix[np.ix_(valid_roi_mask, valid_roi_mask)] = valid_corr
+
+        # 最后把所有 NaN 换成 0
+        conn_matrix = np.nan_to_num(conn_matrix, nan=0.0)
+        np.fill_diagonal(conn_matrix, 1.0)
+        self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]} × {conn_matrix.shape[1]} 功能连接矩阵")
 
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
@@ -871,7 +923,7 @@ class FMRIConnectivityThread(QThread):
 
         fig = go.Figure(
             data=go.Heatmap(
-                z=conn_matrix,
+                z=conn_matrix[:84,:84],
                 colorscale=custom_colorscale,
                 zmin=-1,
                 zmax=1,
@@ -892,7 +944,7 @@ class FMRIConnectivityThread(QThread):
         # ===== 更新布局）=====
         fig.update_layout(
             title=dict(
-                text='fMRI 功能连接矩阵（完整 AAL 脑区）',
+                text='fMRI 功能连接矩阵',
                 font=dict(family="Segoe UI, Microsoft YaHei", size=14, color="#000000"),
                 x=0.5
             ),
@@ -968,10 +1020,16 @@ class FMRIConnectivityThread(QThread):
         # edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
         edge_threshold = "90%"
 
+        conn_matrix_for_3d = conn_matrix[valid_indices_3d, :][:, valid_indices_3d]
+        coords_for_3d = np.array(aal_coords_3d)
+
         view = plotting.view_connectome(
-            conn_matrix, aal_coords, edge_threshold=edge_threshold,
+            conn_matrix_for_3d,
+            coords_for_3d,
+            edge_threshold=edge_threshold,
             title="", node_color="yellow", node_size=8, edge_cmap="bwr", colorbar=False
         )
+
         view.save_as_html(html_path)
 
         with open(html_path, 'r', encoding='utf-8') as f:

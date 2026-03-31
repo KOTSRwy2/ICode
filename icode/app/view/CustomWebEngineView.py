@@ -1,3 +1,5 @@
+import weakref
+
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings, QWebEngineDownloadItem, \
     QWebEngineProfile
 from PyQt5.QtWidgets import QFileDialog, QWidget
@@ -29,9 +31,13 @@ class CustomWebEngineView(QWebEngineView):
     """支持下载和新窗口跳转的 WebEngineView """
     _download_signal_connected = False
     _profile_cache = {}
+    _view_instances = weakref.WeakSet()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._download_items = []  # 跟踪下载项
+        self._profile = None  # 持有 profile 引用
+        CustomWebEngineView._view_instances.add(self)
         self._setup_webengine()
 
     def _setup_webengine(self):
@@ -39,24 +45,42 @@ class CustomWebEngineView(QWebEngineView):
         # 获取当前 profile
         parent_id = id(self.parent()) if self.parent() else id(self)
 
+        if len(self._profile_cache) > 10:
+            oldest_key = next(iter(self._profile_cache))
+            old_profile = self._profile_cache.pop(oldest_key)
+            try:
+                old_profile.deleteLater()
+            except:
+                pass
+
         if parent_id not in self._profile_cache:
             # 创建新的独立 profile
-            profile = QWebEngineProfile(self)
-            profile.setPersistentStoragePath(
+            self._profile = QWebEngineProfile(self)
+            self._profile.setPersistentStoragePath(
                 os.path.join(os.path.expanduser("~"), ".cache", f"webengine_{parent_id}")
             )
-            self._profile_cache[parent_id] = profile
+            self._profile_cache[parent_id] = self._profile
         else:
             profile = self._profile_cache[parent_id]
 
         # 设置自定义 Page
-        custom_page = CustomWebEnginePage(profile, self)
+        custom_page = CustomWebEnginePage(self._profile, self)
         self.setPage(custom_page)
 
-        # ← 关键修复 3：只在 profile 第一次创建时连接信号
-        if not hasattr(profile, '_download_handler_connected'):
-            profile.downloadRequested.connect(self._on_download_requested)
-            profile._download_handler_connected = True
+
+        if not hasattr(self._profile, '_download_handler_connected'):
+            weak_self = weakref.ref(self)
+
+            def _download_handler(download):
+                view = weak_self()
+                if view:
+                    view._on_download_requested(download)
+
+            self._profile.downloadRequested.connect(_download_handler)
+            self._profile._download_handler_connected = True
+            self._profile._download_handler = _download_handler
+            # profile.downloadRequested.connect(self._on_download_requested)
+            # profile._download_handler_connected = True
 
         # 启用相关设置
         settings = self.settings()
@@ -70,6 +94,7 @@ class CustomWebEngineView(QWebEngineView):
         if hasattr(download, '_processed') and download._processed:
             return
         download._processed = True
+        self._download_items.append(download)
         # 获取建议的文件名
         suggested_filename = download.downloadFileName()
 
@@ -89,6 +114,7 @@ class CustomWebEngineView(QWebEngineView):
             download.setDownloadDirectory(os.path.dirname(save_path))
             download.accept()
 
+            weak_self = weakref.ref(self)
             # 连接下载完成信号
             download.finished.connect(
                 lambda: self._on_download_finished(download, save_path)
@@ -142,3 +168,55 @@ class CustomWebEngineView(QWebEngineView):
         new_view.setWindowTitle("新窗口")
         new_view.show()
         return new_view.page()
+
+    # ========== 修复 8：添加清理方法 ==========
+    def cleanup(self):
+        """手动清理资源"""
+        try:
+            # 断开所有下载信号
+            if self._profile and hasattr(self._profile, '_download_handler'):
+                try:
+                    self._profile.downloadRequested.disconnect(self._profile._download_handler)
+                except:
+                    pass
+
+            # 清理下载项
+            for item in self._download_items[:]:
+                try:
+                    item.deleteLater()
+                except:
+                    pass
+            self._download_items.clear()
+
+            # 清理页面
+            page = self.page()
+            if page:
+                page.deleteLater()
+
+        except Exception as e:
+            print(f"Cleanup error: {e}")
+
+    def closeEvent(self, event):
+        """视图关闭时清理资源"""
+        self.cleanup()
+        # 从实例跟踪中移除
+        CustomWebEngineView._view_instances.discard(self)
+        super().closeEvent(event)
+
+    def __del__(self):
+        """析构时确保清理"""
+        try:
+            self.cleanup()
+        except:
+            pass
+
+
+# ========== 修复 9：添加全局清理函数（在应用退出时调用） ==========
+def cleanup_all_profiles():
+    """清理所有缓存的 profile"""
+    for key, profile in list(CustomWebEngineView._profile_cache.items()):
+        try:
+            profile.deleteLater()
+        except:
+            pass
+    CustomWebEngineView._profile_cache.clear()

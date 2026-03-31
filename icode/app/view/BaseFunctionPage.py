@@ -59,6 +59,7 @@ class BaseFunctionPage(ScrollArea):
         # 建立标题区
         self.title_label = SubtitleLabel(title, self.view)
         self.desc_label = BodyLabel(description, self.view)
+        self.desc_label.setWordWrap(True)
         # 使用 QFluentWidgets 默认配色，确保在深浅主题下均有良好的可读性
 
         self.main_layout.addWidget(self.title_label)

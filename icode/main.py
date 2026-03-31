@@ -28,6 +28,8 @@ from app.view.FMRIConnectivityPage import FMRIConnectivityPage
 from app.view.LogReportPage import LogReportPage
 from app.view.SettingsPage import SettingsPage
 from app.common import resource
+import atexit
+from app.view.CustomWebEngineView import cleanup_all_profiles
 
 class EEGFMRIFluentApp(FluentWindow):
     def __init__(self):
@@ -62,7 +64,7 @@ class EEGFMRIFluentApp(FluentWindow):
         StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):
-        self.resize(1150, 780)
+        self.resize(1200, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
         setThemeColor(cfg.themeColor.value)
 
@@ -113,6 +115,7 @@ class EEGFMRIFluentApp(FluentWindow):
         if self.isMicaEffectEnabled():
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
+cleanup_all_profiles()
 if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -126,4 +129,7 @@ if __name__ == "__main__":
 
     window = EEGFMRIFluentApp()
     window.show()
+
+    atexit.register(lambda: cleanup_all_profiles())
+
     sys.exit(app.exec_())

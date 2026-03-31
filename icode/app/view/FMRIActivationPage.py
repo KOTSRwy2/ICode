@@ -18,7 +18,7 @@ from ..common.style_sheet import StyleSheet
 
 class FMRIActivationPage(BaseFunctionPage):
     def __init__(self, parent=None):
-        super().__init__("fMRI 脑区激活定位", "定位激活脑区并生成交互式图表", MODULE_FMRI_ACT, parent)
+        super().__init__("fMRI 脑区激活定位", "读取 NIfTI 文件执行脑激活定位可视化，生成交互式主激活图，并在主界面展示阈值-体素数动画曲线、激活强度直方图共 2 种激活统计分析图表。", MODULE_FMRI_ACT, parent)
         self.fmri_path = ""
         self._init_ui()
 

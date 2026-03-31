@@ -120,18 +120,12 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
     # fig.tight_layout()
     # fig.savefig(output_dir / f"{bdf_stem}_fc_matrix.png", dpi=300)
     custom_colorscale = [
-        [0.0, "#053061"],
-        [0.1, "#2166ac"],
-        [0.2, "#4393c3"],
-        [0.3, "#92c5de"],
-        [0.4, "#d1e5f0"],
-        [0.5, "#f7f7f7"],
-        [0.6, "#f4a582"],
-        [0.7, "#d6604d"],
-        [0.8, "#b2182b"],
-        [0.9, "#67001f"],
-        [1.0, "#2d0000"]
-    ]
+            [0.0, '#0000FF'],
+            [0.25, '#0080FF'],
+            [0.5, '#FFFFFF'],
+            [0.75, '#FF8000'],
+            [1.0, '#FF0000']
+        ]
 
     fig = go.Figure(
         data=go.Heatmap(
