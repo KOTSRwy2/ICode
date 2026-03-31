@@ -14,13 +14,13 @@ from qfluentwidgets import FluentIcon as FIF
 
 
 from .core import log_manager, WorkerThread,  MODULE_EEG_SOURCE
-from ..functions.scource_localization import compute_source_localization,show_source_localization_window
+from ..functions.eeg_scource_localization import compute_source_localization,show_source_localization_window
 from .InteractiveChartCard import InteractiveChartCard
 from ..common.style_sheet import StyleSheet
 
 class EEGSourcePage(BaseFunctionPage):
     def __init__(self, parent=None):
-        super().__init__("EEG 源定位可视化", "读取 BDF 文件并执行 3D 大脑源定位", MODULE_EEG_SOURCE, parent)
+        super().__init__("EEG 源定位可视化", "读取 BDF 文件执行 3D 大脑源定位可视化，并在主界面展示全球功率时间曲线图、源活动功率谱密度图、激活强度分布直方图和脑区激活 Top15 柱状图共 4 张源活动统计分析图表", MODULE_EEG_SOURCE, parent)
         self.bdf_path = ""
         self._init_ui()
 
@@ -222,7 +222,7 @@ class EEGSourcePage(BaseFunctionPage):
 如何理解
 -横轴：激活强度（数值越大，代表皮层该位置的神经电活动响应越强烈，通常为归一化的电流密度值）。
 -纵轴：对应激活强度的偶极子/源点数量（展示了全脑范围内不同活跃程度脑区的占比情况）。
--红色虚线：代表系统自动计算的 90% 分位数阈值线。虚线右侧的部分代表了当前大脑中统计上最显著的高响应脑区。
+-红色虚线：代表系统自动计算的 95% 分位数阈值线。虚线右侧的部分代表了当前大脑中统计上最显著的高响应脑区。
 
 核心用途
 -评估数据分布特征：快速观察全脑激活是呈现弥漫性特征还是局部显著特征，帮助评估源定位算法的收敛性与数据质量。

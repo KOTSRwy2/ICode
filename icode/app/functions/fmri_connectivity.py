@@ -2,6 +2,7 @@ import os
 import re
 import numpy as np
 import nibabel as nib
+from PIL.FontFile import WIDTH
 from nilearn import plotting, image, masking
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -342,21 +343,21 @@ class FMRIConnectivityThread(QThread):
                 [{"secondary_y": False}, {"secondary_y": False}]
             ],
             vertical_spacing=0.4,
-            horizontal_spacing=0.08
+            horizontal_spacing=0.14
         )
         mean_strengths_clean = np.nan_to_num(mean_strengths, nan=0.0, posinf=0.0, neginf=0.0)
         # ========== 子图 1：平均连接强度 (row=1, col=1) ==========
-        fig.add_trace(go.Scatter(x=start_times[:1], y=mean_strengths_clean[:1], mode='lines',
-                                 name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=start_times[:1], y=mean_strengths_clean[:1], mode='lines',legend='legend', showlegend=True,
+                                 name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1,)
         # Trace 1
-        fig.add_trace(go.Scatter(x=start_times[:1], y=pos_ratios[:1], mode='lines',
-                                 name='正连接', line=dict(color='#00ffff', width=2)), row=1, col=2)
+        fig.add_trace(go.Scatter(x=start_times[:1], y=pos_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+                                 name='正连接', line=dict(color='#E74C3C', width=2)), row=1, col=2)
         # Trace 2
-        fig.add_trace(go.Scatter(x=start_times[:1], y=neg_ratios[:1], mode='lines',
-                                 name='负连接', line=dict(color='#ff6b6b', width=2)), row=1, col=2)
+        fig.add_trace(go.Scatter(x=start_times[:1], y=neg_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+                                 name='负连接', line=dict(color='#3498DB', width=2)), row=1, col=2)
         # Trace 3
         conn_stds_clean = np.nan_to_num(conn_stds, nan=0.0, posinf=0.0, neginf=0.0)
-        fig.add_trace(go.Scatter(x=start_times[:1], y=conn_stds_clean[:1], mode='lines',
+        fig.add_trace(go.Scatter(x=start_times[:1], y=conn_stds_clean[:1], mode='lines',legend='legend3', showlegend=True,
                                  name='异质性', line=dict(color='#fe8019', width=2)), row=2, col=1)
 
         # ========== 子图 4：还原原始循环样式 (静态显示) ==========
@@ -364,12 +365,48 @@ class FMRIConnectivityThread(QThread):
         fig.add_trace(go.Scatter(x=[0, n_timepoints * tr], y=[0, 0], mode='lines',
                                  line=dict(color='#808080', width=2), showlegend=False, hoverinfo='skip'), row=2, col=2)
 
-        # 还原你的原始循环：每个窗口都是独立的 Trace (从 Trace 5 开始)
+        cyan_legend_shown = False
+        red_legend_shown = False
+        window_trace_start_idx = 5
+
+        # # 还原你的原始循环：每个窗口都是独立的 Trace (从 Trace 5 开始)
+        # for i, (start_idx, end_idx) in enumerate(windows):
+        #     start = start_idx * tr
+        #     end = end_idx * tr
+        #     color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
+        #     show_legend = (i == 0)
+        #
+        #     fig.add_trace(
+        #         go.Scatter(
+        #             x=[start, end, end, start, start],
+        #             y=[-0.1, -0.1, 0.1, 0.1, -0.1],
+        #             fill='toself',
+        #             fillcolor=color,
+        #             line=dict(color=color, width=0),
+        #             opacity=0.5,
+        #             name='窗口覆盖' if show_legend else '',
+        #             showlegend=show_legend,
+        #             hoverinfo='x'
+        #         ),
+        #         row=2, col=2
+        #     )
         for i, (start_idx, end_idx) in enumerate(windows):
             start = start_idx * tr
             end = end_idx * tr
             color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
-            show_legend = (i == 0)  # 只显示第一个窗口的图例防止列表过长
+
+            # 按颜色分类显示图例，而不是按第一个窗口
+            if color == '#4ECDC4' and not cyan_legend_shown:
+                show_legend = True
+                cyan_legend_shown = True
+                legend_name = '窗口类别A'
+            elif color == '#FF6B6B' and not red_legend_shown:
+                show_legend = True
+                red_legend_shown = True
+                legend_name = '窗口类别B'
+            else:
+                show_legend = False
+                legend_name = ''
 
             fig.add_trace(
                 go.Scatter(
@@ -379,13 +416,14 @@ class FMRIConnectivityThread(QThread):
                     fillcolor=color,
                     line=dict(color=color, width=0),
                     opacity=0.5,
-                    name='窗口覆盖' if show_legend else '',
+                    name=legend_name,
                     showlegend=show_legend,
-                    hoverinfo='x'
+                    legend='legend4',
+                    hoverinfo='x',
+                    legendgroup=f'g4_{color}'
                 ),
                 row=2, col=2
             )
-
         # 记录最后一个用于更新的 Trace 索引（即进度圆点）
         dot_trace_idx = 5 + len(windows)
         fig.add_trace(
@@ -400,10 +438,10 @@ class FMRIConnectivityThread(QThread):
         for i in range(1, len(start_times) + 1):
             frames.append(go.Frame(
                 data=[
-                    go.Scatter(x=start_times[:i], y=mean_strengths_clean[:i]),  # Trace 0
-                    go.Scatter(x=start_times[:i], y=pos_ratios[:i]),  # Trace 1
-                    go.Scatter(x=start_times[:i], y=neg_ratios[:i]),  # Trace 2
-                    go.Scatter(x=start_times[:i], y=conn_stds_clean[:i]),  # Trace 3
+                    go.Scatter(x=start_times[:i], y=mean_strengths_clean[:i],legend='legend'),  # Trace 0
+                    go.Scatter(x=start_times[:i], y=pos_ratios[:i],legend='legend2'),  # Trace 1
+                    go.Scatter(x=start_times[:i], y=neg_ratios[:i],legend='legend2'),  # Trace 2
+                    go.Scatter(x=start_times[:i], y=conn_stds_clean[:i],legend='legend3'),  # Trace 3
                     go.Scatter(x=[start_times[i - 1]], y=[0])  # 进度点
                 ],
                 traces=[0, 1, 2, 3, dot_trace_idx],  # 关键：跳过图四的静态色块索引
@@ -415,7 +453,13 @@ class FMRIConnectivityThread(QThread):
             updatemenus=[{
                 'type': 'buttons',
                 'showactive': False,
-                'x': 0.5, 'y': -0.15, 'xanchor': 'center',
+                'x': 0.5, 'y': 0.5, 'xanchor': 'center',
+                'bgcolor': 'rgba(255,255,255,0)',
+                'bordercolor': 'rgba(255,255,255,0)',
+                'borderwidth': 0,
+                'font': {
+                    'color': 'rgba(255,255,255,0)'
+                },
                 'buttons': [{
             'label': 'Play',
             'method': 'animate',
@@ -435,8 +479,8 @@ class FMRIConnectivityThread(QThread):
             }]
         }]
             }],
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='#FFFFFF',
+            plot_bgcolor='#FFFFFF',
             margin=dict(l=20, r=20, t=60, b=20),  # 增加底部 margin 给按钮留空间
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             showlegend=True,
@@ -447,13 +491,46 @@ class FMRIConnectivityThread(QThread):
             ),
             autosize=True
         )
+        common_style = dict(
+            bgcolor='rgba(255,255,255,0.6)',
+            font=dict(size=10, color="#333333"),
+            bordercolor='rgba(200,200,200,0.5)',
+            borderwidth=1,
+            orientation='v'
+        )
+
+        fig.update_layout(
+            # 子图 1 图例 (左上)
+            legend=dict(
+                x=0.35, y=1.1, xanchor='left', yanchor='top',
+                **common_style
+            ),
+            # 子图 2 图例 (右上)
+            legend2=dict(
+                x=0.94, y=1.15, xanchor='right', yanchor='top',
+                **common_style
+            ),
+            # 子图 3 图例 (左下) - 这里的 y 值需要根据你的 vertical_spacing 调整
+            legend3=dict(
+                x=0.35, y=0.45, xanchor='left', yanchor='top',
+                **common_style
+            ),
+            # 子图 4 图例 (右下)
+            legend4=dict(
+                x=0.94, y=0.50, xanchor='right', yanchor='top',
+                **common_style
+            )
+        )
+
+        # 移除之前可能冲突的全局 showlegend=True 设置
+        fig.update_layout(showlegend=True)
 
         # ========== 更新各子图的坐标轴配置 ==========
         fig.update_xaxes(
             title='时间 (秒)',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=1, col=1
         )
@@ -461,7 +538,7 @@ class FMRIConnectivityThread(QThread):
             title='平均绝对相关系数',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=1, col=1
         )
@@ -470,7 +547,7 @@ class FMRIConnectivityThread(QThread):
             title='时间 (秒)',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=1, col=2
         )
@@ -478,7 +555,7 @@ class FMRIConnectivityThread(QThread):
             title='比例 (%)',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             range=[0, 100],
             row=1, col=2,
@@ -489,7 +566,7 @@ class FMRIConnectivityThread(QThread):
             title='时间 (秒)',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=2, col=1
         )
@@ -497,7 +574,7 @@ class FMRIConnectivityThread(QThread):
             title='连接值标准差',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=2, col=1
         )
@@ -506,7 +583,7 @@ class FMRIConnectivityThread(QThread):
             title='时间 (秒)',
             showticklabels=True,
             ticks='outside',
-            gridcolor='rgba(128,128,128,1)',
+            gridcolor='rgba(50,50,50,1)',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             row=2, col=2
         )
@@ -537,33 +614,6 @@ class FMRIConnectivityThread(QThread):
         key_window_indices = np.linspace(0, n_windows - 1, n_show, dtype=int)
         key_window_indices = sorted(list(set(key_window_indices)))  # 去重
 
-        # plt.figure(figsize=(4 * n_show, 4))
-        # plt.style.use('dark_background')
-        # cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
-        #                                          ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
-        #                                          N=256)
-        #
-        # for idx, win_idx in enumerate(key_window_indices):
-            # ax = plt.subplot(1, len(key_window_indices), idx + 1)
-            # conn = window_conn_matrices[win_idx]
-            # im = ax.imshow(conn, cmap=cmap, vmin=-1, vmax=1)
-
-            # win_metric = window_metrics[win_idx]
-        #     ax.set_title(f"窗口 {win_idx}\n{win_metric['start_time_s']:.0f}-{win_metric['end_time_s']:.0f}s",
-        #                  color="white", fontsize=10)
-        #     ax.set_xlabel("脑区索引", color="white", fontsize=8)
-        #     ax.set_ylabel("脑区索引", color="white", fontsize=8)
-        #     ax.tick_params(colors='white', labelsize=8)
-        #
-        # cbar_ax = plt.axes([0.92, 0.15, 0.02, 0.7])
-        # cbar = plt.colorbar(im, cax=cbar_ax, label="皮尔逊相关系数")
-        # cbar.ax.tick_params(labelsize=10, colors='white')
-        # cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
-        #
-        # sliding_window_heatmap_path = os.path.join(output_dir, "fmri_sliding_window_heatmaps.png")
-        # plt.savefig(sliding_window_heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        # plt.close()
-
         fig_heatmap = make_subplots(
             rows=1,
             cols=len(key_window_indices),
@@ -571,7 +621,7 @@ class FMRIConnectivityThread(QThread):
                 f"窗口 {win_idx}\n{window_metrics[win_idx]['start_time_s']:.0f}-{window_metrics[win_idx]['end_time_s']:.0f}s"
                 for win_idx in key_window_indices
             ],
-            horizontal_spacing=0.02,
+            horizontal_spacing=0.03,
             vertical_spacing=0.01
         )
         # ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000']
@@ -827,7 +877,6 @@ class FMRIConnectivityThread(QThread):
                 zmax=1,
                 colorbar=dict(
                     title='皮尔逊相关系数',
-                    # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
                     tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
                     tickvals=np.linspace(-1, 1, 9).tolist(),  # 刻度值：-1, -0.75, ..., 1
                     tickformat='.2f',
@@ -849,33 +898,34 @@ class FMRIConnectivityThread(QThread):
             ),
             paper_bgcolor='#FFFFFF',
             plot_bgcolor='#FFFFFF',
-            # ===== 边距配置 =====
-            margin=dict(l=60, r=100, t=80, b=60),
-            # ===== 字体配置 =====
+            margin=dict(l=100, r=100, t=80, b=60),
             font=dict(family="Segoe UI, Microsoft YaHei", color="#000000", size=12),
-            # ===== 尺寸配置 =====
             autosize=True,
-            # ===== 其他配置 =====
-            showlegend=False
+            showlegend=False,
         )
 
         # ===== 更新坐标轴配置 =====
         fig.update_xaxes(
             title='脑区索引',
-            # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
             tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
             gridcolor='rgba(128,128,128,0.5)',
             showticklabels=True,
-            ticks='outside'
+            scaleanchor="y",
+            scaleratio=1,
+            ticks='outside',
+            dtick=10,
+            constrain="domain"
         )
 
         fig.update_yaxes(
             title='脑区索引',
-            # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#000000"),
             tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
             gridcolor='rgba(128,128,128,0.2)',
             showticklabels=True,
-            ticks='outside'
+            ticks='outside',
+            constrain="domain",
+            autorange = 'reversed',
+            dtick = 10
         )
 
         # ===== 保存文件 =====
@@ -961,7 +1011,6 @@ class FMRIConnectivityThread(QThread):
             f.write(html_content)
 
         if os.path.exists(html_path):
-            # webbrowser.open(f'file://{os.path.abspath(html_path)}')
             self.log_pyqtSignal.emit(f"fMRI功能连接HTML已生成并打开：{html_path}")
 
         results_paths['main'] = html_path

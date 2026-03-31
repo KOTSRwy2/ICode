@@ -11,7 +11,7 @@ from qfluentwidgets import (
 from qfluentwidgets import FluentIcon as FIF
 
 from .core import log_manager, WorkerThread, MODULE_EEG_CONN
-from ..functions.connectivity_visualization import compute_connectivity_data, render_connectivity_html
+from ..functions.eeg_connectivity_visualization import compute_connectivity_data, render_connectivity_html
 
 from .InteractiveChartCard import InteractiveChartCard
 from ..common.style_sheet import StyleSheet
@@ -19,7 +19,7 @@ from ..common.style_sheet import StyleSheet
 
 class EEGConnectivityPage(BaseFunctionPage):
     def __init__(self, parent=None):
-        super().__init__("EEG 功能连接分析", "计算频带连接强度并导出交互式图表", MODULE_EEG_CONN, parent)
+        super().__init__("EEG 功能连接分析", "读取 BDF 文件执行 EEG 脑功能连接 3D 可视化，并在主界面展示功能连接强度矩阵、网络核心枢纽排名图、连接强度分布直方图和距离-强度相关性散点图共 4 张多维度统计分析图表", MODULE_EEG_CONN, parent)
         self.bdf_path = ""
         self._init_ui()
 
@@ -57,7 +57,7 @@ class EEGConnectivityPage(BaseFunctionPage):
         band_layout.addStretch(1)
         parameters_layout.addLayout(band_layout)
 
-        self.btn_run = PushButton("执行功能连接分析", self.view, FIF.PLAY)
+        self.btn_run = PushButton("执行EEG功能连接分析", self.view, FIF.PLAY)
         self.btn_run.clicked.connect(self._run_task)
 
         self.content_layout.addLayout(file_layout)

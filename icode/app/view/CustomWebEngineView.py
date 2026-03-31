@@ -1,7 +1,9 @@
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings, QWebEngineDownloadItem, \
     QWebEngineProfile
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QWidget
 import os
+from PyQt5.QtCore import Qt
+from qfluentwidgets import InfoBarPosition, InfoBar
 
 
 class CustomWebEnginePage(QWebEnginePage):
@@ -98,7 +100,41 @@ class CustomWebEngineView(QWebEngineView):
     def _on_download_finished(self, download, save_path):
         """下载完成回调"""
         if download.isFinished():
-            self.window().statusBar().showMessage(f"下载完成：{save_path}", 3000) if self.window().statusBar() else None
+            # self.window().statusTip().showMessage(f"下载完成：{save_path}", 3000) if self.window().statusBar() else None
+            self._show_info_bar(f"下载完成：{os.path.basename(save_path)}", save_path)
+
+    def _show_info_bar(self, title, content=None):
+        """显示 InfoBar 通知"""
+        # 获取主窗口（FluentWindow）
+        main_window = self.window()
+
+        # 查找合适的父 widget 用于显示 InfoBar
+        parent_widget = None
+
+        # 尝试获取当前显示的子页面
+        if hasattr(main_window, 'stackWidget'):
+            parent_widget = main_window.stackWidget.currentWidget()
+        elif hasattr(main_window, 'centralWidget'):
+            parent_widget = main_window.centralWidget()
+        else:
+            #  fallback：使用 view 本身
+            parent_widget = self
+
+        if parent_widget and isinstance(parent_widget, QWidget):
+            InfoBar.success(
+                title=title,
+                content=content,
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=3000,
+                parent=parent_widget
+            )
+        else:
+            print(f"✅ {title}")
+            if content:
+                print(f"   路径：{content}")
+
 
     def createWindow(self, window_type):
         """重写 createWindow 处理新窗口请求"""

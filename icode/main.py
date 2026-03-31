@@ -21,16 +21,6 @@ from qfluentwidgets import FluentIcon as FIF
 from app.common.style_sheet import StyleSheet
 from app.common.config import cfg
 import qfluentwidgets, sys
-
-# 导入业务独立页面
-# from app.pages import (
-#     EEGSourcePage,
-#     EEGConnectivityPage,
-#     FMRIActivationPage,
-#     FMRIConnectivityPage,
-#     LogReportPage,
-#     SettingsPage
-# )
 from app.view.EEGSourcePage import EEGSourcePage
 from app.view.EEGConnectivityPage import EEGConnectivityPage
 from app.view.FMRIActivationPage import FMRIActivationPage
@@ -74,8 +64,6 @@ class EEGFMRIFluentApp(FluentWindow):
     def _init_window_spec(self):
         self.resize(1150, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
-
-        # setThemeColor("#1677ff")
         setThemeColor(cfg.themeColor.value)
 
         self.setMicaEffectEnabled(True)
@@ -126,7 +114,6 @@ class EEGFMRIFluentApp(FluentWindow):
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
 if __name__ == "__main__":
-    # 高分屏支持
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
@@ -134,7 +121,7 @@ if __name__ == "__main__":
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     app = QApplication(sys.argv)
-    # 解决部分布局边缘可能触发的本地控件样式杂乱
+
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
 
     window = EEGFMRIFluentApp()

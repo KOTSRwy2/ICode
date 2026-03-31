@@ -162,14 +162,20 @@ class FMRIActivationThread(QThread):
                 line=dict(color='#1677ff', width=3),
                 marker=dict(size=8, symbol='circle')
             )],
-            frames=frames
+            frames=frames,
         )
 
         fig1.update_layout(
             updatemenus=[{
                 'type': 'buttons',
                 'showactive': False,
-                'x': 0.0, 'y': 0, 'xanchor': 'center',
+                'x': 0.5, 'y': 0.5, 'xanchor': 'center',
+                'bgcolor': 'rgba(255,255,255,0)',
+                'bordercolor': 'rgba(255,255,255,0)',
+                'borderwidth': 0,
+                'font': {
+                    'color': 'rgba(255,255,255,0)'
+                },
                 'buttons': [{
             'label': 'Play',
             'method': 'animate',
@@ -189,8 +195,8 @@ class FMRIActivationThread(QThread):
             }]
         }]
             }],
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='#FFFFFF',
+            plot_bgcolor='#FFFFFF',
             margin=dict(l=40, r=40, t=20, b=0),
             xaxis=dict(title='激活阈值', gridcolor='rgba(128,128,128,0.2)'),
             yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
@@ -213,14 +219,15 @@ class FMRIActivationThread(QThread):
         fig2 = go.Figure()
         fig2.add_trace(go.Histogram(
             x=data.flatten(), nbinsx=50,
-            marker_color='rgba(0, 255, 255, 0.6)',  # 保留青色特征，增加透明度
+            marker_color='rgba(0, 255, 255, 0.6)',
             marker_line_color='black', marker_line_width=1, name="体素数量"
         ))
         # 添加 90% 阈值辅助线 (原版红色虚线)
         fig2.add_vline(x=threshold_90, line_width=2, line_dash="dash", line_color="red",
                        annotation_text="90% 阈值", annotation_position="top right")
         fig2.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='#FFFFFF',
+            plot_bgcolor='#FFFFFF',
             margin=dict(l=40, r=40, t=20, b=40),
             xaxis=dict(title='激活强度', gridcolor='rgba(128,128,128,0.2)'),
             yaxis=dict(title='体素数量', gridcolor='rgba(128,128,128,0.2)'),

@@ -140,6 +140,9 @@ class PlotlyHTMLInjector:
             .updatemenu-container {
                 display: none !important;
             }
+             .plotly-graph-div .updatemenu {
+                display: none !important;
+            }
         </style>
         """
 
