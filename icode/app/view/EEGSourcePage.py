@@ -180,7 +180,6 @@ class EEGSourcePage(BaseFunctionPage):
                     """,
                     chart_name="全球功率时间曲线图",
                     image_url=os.path.join(self.base_dir, "app/resource/images", "time_course.jpg"),
-                    # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                     enable_animation=True,
                 )
                 card1.web_view.setFixedHeight(500)
@@ -205,7 +204,6 @@ class EEGSourcePage(BaseFunctionPage):
                     """,
                     chart_name="源活动功率谱密度图",
                     image_url=os.path.join(self.base_dir, "app/resource/images", "psd.jpg"),
-                    # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                     enable_animation=True,
                 )
                 card2.web_view.setFixedHeight(500)
@@ -231,7 +229,6 @@ class EEGSourcePage(BaseFunctionPage):
                     """,
                     chart_name="激活强度分布直方图",
                     image_url=os.path.join(self.base_dir, "app/resource/images", "eeg_hist.png"),
-                    # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                     is_html = False
                 )
                 card3.web_view.setFixedHeight(500)
@@ -255,7 +252,6 @@ class EEGSourcePage(BaseFunctionPage):
                     """,
                     chart_name="脑区激活 Top 15 柱状图",
                     image_url=os.path.join(self.base_dir, "app/resource/images", "top-K.jpg"),
-                    # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                 )
                 card4.web_view.setFixedHeight(500)
 

@@ -176,7 +176,6 @@ class EEGConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="功能连接强度矩阵",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "eeg_heat_map.jpg"),
-                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
             )
             card1.web_view.setFixedHeight(650)
 
@@ -199,7 +198,6 @@ class EEGConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="网络核心枢纽排名图",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "network_hub.jpg"),
-                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
             )
             card2.web_view.setFixedHeight(500)
 
@@ -221,7 +219,6 @@ class EEGConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="连接强度分布直方图",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "Weight Distribution.png"),
-                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
             )
             card3.web_view.setFixedHeight(500)
 
@@ -244,7 +241,6 @@ class EEGConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="距离-强度相关性散点图",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "diatance-connectivity.png"),
-                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
             )
             card4.web_view.setFixedHeight(500)
 

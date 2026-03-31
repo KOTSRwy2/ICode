@@ -34,7 +34,6 @@ class SettingsPage(ScrollArea):
         # 使用分组归类管理项
         self.personal_group = SettingCardGroup("界面与主题", self.view)
 
-        # 主题模式：必须调用 setTheme 才会刷新 Fluent 背景与控件样式
         self.theme_card = OptionsSettingCard(
             cfg.themeMode,
             FIF.BRUSH,
@@ -59,9 +58,9 @@ class SettingsPage(ScrollArea):
         self.personal_group.addSettingCard(self.theme_card)
         self.personal_group.addSettingCard(self.color_card)
 
-        # ensure theme changes actually update qfluentwidgets styles
+
         cfg.themeChanged.connect(setTheme)
-        # propagate color selection to fluent theme color
+
         self.color_card.colorChanged.connect(lambda c: setThemeColor(c))
 
         self.expand_layout.addWidget(self.personal_group)
@@ -69,10 +68,6 @@ class SettingsPage(ScrollArea):
         StyleSheet.MAIN.apply(self)
 
     def _on_theme_changed(self, theme):
-        # theme = [Theme.LIGHT, Theme.DARK, Theme.AUTO][index]
-        # setTheme(theme, save=True, lazy=False)
-        # # qconfig.themeChanged 信号会触发 main.py 中的刷新，但我们这里也可以手动更新样式
-        # # FluentStyleSheet.apply(self.window())
         StyleSheet.MAIN.apply(self)
 
         # 刷新窗口

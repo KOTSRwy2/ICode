@@ -81,7 +81,7 @@ class FMRIActivationPage(BaseFunctionPage):
             log_manager.add_log(f"fMRI 图表渲染完成，准备挂载UI", self.module_name)
             self.show_success_dialog("计算完毕", "激活分析已完成，请在下方查看交互图表。")
 
-            # 清理之前可能残留的卡片
+            # 清理卡片
             self._clear_previous_cards()
 
             # 创建一个用于容纳卡片的布局
@@ -116,7 +116,6 @@ class FMRIActivationPage(BaseFunctionPage):
 """                ,
                 chart_name = "阈值-激活体素数曲线",
                 image_url = os.path.join(self.base_dir, "app/resource/images","fmri_activation_crue.jpg"),
-                # tutorial_url = "https://blog.csdn.net/sky77/article/details/149389952",
                 enable_animation=True,
             )
             card1.web_view.setFixedHeight(500)
@@ -143,7 +142,6 @@ class FMRIActivationPage(BaseFunctionPage):
 """,
                 chart_name = "阈值-激活体素数曲线",
                 image_url = os.path.join(self.base_dir, "app/resource/images", "fmri_hist.png"),
-                # tutorial_url = "https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
                 enable_animation=False,
             )
             card2.web_view.setFixedHeight(500)

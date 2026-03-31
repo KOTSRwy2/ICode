@@ -11,8 +11,8 @@ import json
 from .PlotlyHTMLInjector import PlotlyHTMLInjector
 from pathlib import Path
 
-plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
-plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
 
 plt.switch_backend('Agg')
 
@@ -88,7 +88,6 @@ class FMRIActivationThread(QThread):
 
         html_path = os.path.join(self.output_dir, f"{base_name}_activation.html")
 
-        # ========== 关键：生成自带阈值滑块的 HTML ==========
         threshold = np.percentile(np.abs(fmri_mean.get_fdata()[fmri_mean.get_fdata() != 0]), 90)
         view = plotting.view_img(
             fmri_mean, bg_img=mni_template,
@@ -122,7 +121,6 @@ class FMRIActivationThread(QThread):
         if os.path.exists(html_path):
             self.log_pyqtSignal.emit(f"fMRI激活HTML已生成：{html_path}")
 
-        ########### ===================== 新增功能：自动输出所有图表到 outputs/fMRI =====================
         self.log_pyqtSignal.emit("生成激活统计图表...")
 
         # 1. 读取激活数据
@@ -138,7 +136,7 @@ class FMRIActivationThread(QThread):
         thresholds = np.linspace(np.percentile(data, 50), np.percentile(data, 90), 20)
         counts = [np.sum(data > t) for t in thresholds]
 
-        # ===== 新增：创建帧动画 =====
+        # 创建帧动画
         frames = []
         for i in range(1, len(thresholds) + 1):
             frames.append(go.Frame(
@@ -214,7 +212,7 @@ class FMRIActivationThread(QThread):
 
         results_paths['curve'] = path1
 
-        ######### 3. 激活强度直方图
+        #3. 激活强度直方图
         self.log_pyqtSignal.emit("生成激活强度分布直方图...")
         fig2 = go.Figure()
         fig2.add_trace(go.Histogram(
@@ -222,7 +220,7 @@ class FMRIActivationThread(QThread):
             marker_color='rgba(0, 255, 255, 0.6)',
             marker_line_color='black', marker_line_width=1, name="体素数量"
         ))
-        # 添加 90% 阈值辅助线 (原版红色虚线)
+        # 添加 90% 阈值辅助线
         fig2.add_vline(x=threshold_90, line_width=2, line_dash="dash", line_color="red",
                        annotation_text="90% 阈值", annotation_position="top right")
         fig2.update_layout(
@@ -244,31 +242,6 @@ class FMRIActivationThread(QThread):
         })
 
         results_paths['histogram'] = path2
-
-        # ####### 4. 三正交切片图（强制显示最强激活点！）（切的点太怪了感觉不对，如果可以直接在前端交互窗口加个截图功能？）
-        # self.log_pyqtSignal.emit("生成交互式三正交切片视图...")
-        # # 寻找最强激活峰值坐标作为默认切片中心
-        # from nilearn.masking import compute_epi_mask
-        # mask = compute_epi_mask(fmri_mean)
-        # peak_coords = plotting.find_xyz_cut_coords(fmri_mean, mask_img=mask)
-        #
-        # path3 = os.path.join(self.output_dir, f"{base_name}_ortho.html")
-        # view = plotting.view_img(
-        #     fmri_mean, bg_img=mni_template,
-        #     threshold=threshold_90,  # 使用计算出的 90% 阈值
-        #     title="Interactive fMRI Ortho Viewer",
-        #     cmap="RdYlBu_r",
-        #     cut_coords=peak_coords,
-        #     black_bg=False
-        # )
-        # view.save_as_html(path3)
-        # # 这里保留您原有的 CSS 注入逻辑以美化 view_img，但移除了强制黑色背景
-        # results_paths['ortho'] = path3
-
-        # # 5. 激活簇表
-        # self.log_pyqtSignal.emit("生成激活簇表...")
-        # clusters = reporting.get_clusters_table(fmri_mean, stat_threshold=threshold, cluster_threshold=10)
-        # clusters.to_csv(os.path.join(self.output_dir, "activation_clusters.csv"), index=False)
 
         # 6. 脑区激活总结JSON
         self.log_pyqtSignal.emit("生成脑区激活总结...")

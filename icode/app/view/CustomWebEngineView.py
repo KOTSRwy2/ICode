@@ -37,8 +37,7 @@ class CustomWebEngineView(QWebEngineView):
 
     def _setup_webengine(self):
         """配置 WebEngine，确保 Profile 赋值顺序正确"""
-        # 1. 确定当前上下文的 ID（用于 Profile 复用）
-        # 优先使用顶级窗口的 ID，确保同一个功能模块下的子窗口共享一个 Profile
+        # 1. 确定当前上下文的 ID
         top_window = self.window()
         parent_id = id(top_window) if top_window else id(self)
 
@@ -47,7 +46,6 @@ class CustomWebEngineView(QWebEngineView):
             # 创建独立 Profile，Parent 设为 None 由全局清理函数管理
             new_profile = QWebEngineProfile(f"storage_{parent_id}", None)
 
-            # 关键修复点：先赋值给 self._profile，再调用其方法
             self._profile = new_profile
 
             storage_path = os.path.join(os.path.expanduser("~"), ".cache", f"webengine_{parent_id}")

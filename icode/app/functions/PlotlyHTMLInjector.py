@@ -18,8 +18,6 @@ class PlotlyHTMLInjector:
         """
         self.output_dir = output_dir
 
-    # ==================== 公共方法 ====================
-
     def inject_all(self, html_path: str, options: Optional[Dict[str, bool]] = None) -> bool:
         """
         一次性注入所有需要的脚本

@@ -110,7 +110,6 @@ class EEGFMRIFluentApp(FluentWindow):
     def _onThemeChangedFinished(self):
         super()._onThemeChangedFinished()
 
-        # retry
         if self.isMicaEffectEnabled():
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 

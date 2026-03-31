@@ -3,12 +3,6 @@
 source_localization.py
 功能1：模板版 EEG 源定位可视化
 
-改造说明：
-1. 新增 EEGSourceLocalizationThread，用于后台执行重计算
-2. 将“计算”和“显示”拆开：
-   - compute_source_localization(): 后台线程执行
-   - show_source_localization_window(): 主线程执行
-3. 这样可以避免主界面长时间卡死未响应
 """
 
 import os
@@ -18,10 +12,8 @@ import mne
 from mne.datasets import fetch_fsaverage
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QApplication
-import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.signal import welch
 from .PlotlyHTMLInjector import PlotlyHTMLInjector
 import numpy as np
 from matplotlib.figure import Figure
@@ -248,23 +240,6 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
 
 
 def _plot_source_intensity_hist_plotly(stc, output_dir, bdf_stem, html_injector):
-    # """绘制激活强度分布直方图（Plotly 版本，静态）"""
-    # print("正在生成激活强度分布直方图（Plotly）...")
-    # data_flat = stc.data.flatten()
-    # p95 = np.percentile(stc.data, 95)
-    #
-    # # 2. 强度直方图
-    # fig2 = Figure(figsize=(8, 4));
-    # FigureCanvas(fig2)
-    # ax2 = fig2.add_subplot(111)
-    # ax2.hist(stc.data.flatten(), bins=50, color='#66ccff', alpha=0.8)
-    # ax2.axvline(np.percentile(stc.data, 95), color='#ff4d4f', linestyle='--')
-    # ax2.set_title("激活强度分布统计", fontname='SimHei')
-    # fig2.tight_layout()
-    # fig2.savefig(output_dir / "source_intensity_hist.png", dpi=300)
-    # hist_path = os.path.join(output_dir, f"source_intensity_hist.png")
-    # return hist_path
-
     fig2 = Figure(figsize=(8, 4))
     FigureCanvas(fig2)
     ax2 = fig2.add_subplot(111)
@@ -546,15 +521,7 @@ def compute_source_localization(
     analysis_band="full",
     plot_theme="auto",
 ):
-    """
-    只负责重计算，不负责弹窗。
-    可在后台线程中安全执行。
 
-    返回
-    ----------
-    result : dict
-        后续主线程显示窗口所需的数据
-    """
     if logger is None:
         logger = _default_logger
 
@@ -690,10 +657,6 @@ def compute_source_localization(
     psd_path = ""
     try:
         logger("正在生成 EEG 源定位统计分析图（时间/分布/区域/频谱）...")
-        # import numpy as np
-        # from matplotlib.figure import Figure
-        # from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-        # from scipy.signal import welch
         eeg_output_dir = _get_outputs_dir()
         html_injector = PlotlyHTMLInjector(str(eeg_output_dir))
         bdf_stem = Path(bdf_path).stem
@@ -701,111 +664,27 @@ def compute_source_localization(
         times = stc.times * 1000
         mean_data = np.mean(np.abs(stc.data), axis=0)
 
-        # # 1. 时间序列图
-        # fig1 = Figure(figsize=(10, 4));
-        # FigureCanvas(fig1)
-        # ax1 = fig1.add_subplot(111)
-        # ax1.plot(times, mean_data, color='#1677ff')
-        # ax1.set_title(f"源活动时间序列 ({band_label})", fontname='SimHei')
-        # fig1.tight_layout()
-        # fig1.savefig(eeg_output_dir / "source_time_course.png", dpi=300)
-        #
-        # # 2. 强度直方图
-        # fig2 = Figure(figsize=(8, 4));
-        # FigureCanvas(fig2)
-        # ax2 = fig2.add_subplot(111)
-        # ax2.hist(stc.data.flatten(), bins=50, color='#66ccff', alpha=0.8)
-        # ax2.axvline(np.percentile(stc.data, 95), color='#ff4d4f', linestyle='--')
-        # ax2.set_title("激活强度分布统计", fontname='SimHei')
-        # fig2.tight_layout()
-        # fig2.savefig(eeg_output_dir / "source_intensity_hist.png", dpi=300)
-
-        # 1. 时间序列图（带动画）
+        # 1. 时间序列图
         time_course_path = _plot_source_time_course_plotly(
             stc, eeg_output_dir, bdf_stem, band_label, html_injector
         )
 
-        # 2. 强度直方图（静态）
+        # 2. 强度直方图
         hist_path = _plot_source_intensity_hist_plotly(
             stc, eeg_output_dir, bdf_stem, html_injector
         )
 
-        # 3. 脑区激活排名（静态）
+        # 3. 脑区激活排名
         region_path = _plot_region_activation_bar_plotly(
             stc, str(subjects_dir), eeg_output_dir, bdf_stem, html_injector
         )
 
-        # 4. 频谱 PSD（带动画）
+        # 4. 频谱 PSD
         psd_path = _plot_source_psd_plotly(
             stc, raw, eeg_output_dir, bdf_stem, html_injector
         )
 
         logger(f"所有 4 张 Plotly 统计分析图已保存至：{eeg_output_dir}")
-
-        # 返回路径供主线程使用
-        # # 3. 脑区激活排名 (增加容错处理)
-        # try:
-        #     # --- 核心改进：寻找峰值时刻 ---
-        #     # 计算全脑随时间变化的平均强度
-        #     global_power = np.mean(np.abs(stc.data), axis=0)
-        #     # 找到能量最大的时刻点 (idx)
-        #     peak_idx = np.argmax(global_power)
-        #     # 定义一个小的时间窗 (峰值前后各约 30ms)
-        #     win = 5
-        #     start_idx = max(0, peak_idx - win)
-        #     stop_idx = min(stc.data.shape[1], peak_idx + win)
-        #     # ---------------------------
-        #
-        #     labels = mne.read_labels_from_annot('fsaverage', parc='aparc', subjects_dir=subjects_dir)
-        #     label_means = []
-        #     label_names = []
-        #
-        #     for l in labels:
-        #         try:
-        #             stc_label = stc.in_label(l)
-        #             if stc_label.data.size > 0:
-        #                 # 【修改点】：只计算峰值时刻窗口内的平均值
-        #                 val = np.mean(np.abs(stc_label.data[:, start_idx:stop_idx]))
-        #                 label_means.append(val)
-        #                 label_names.append(l.name)
-        #         except:
-        #             continue
-        #
-        #     if label_means:
-        #         max_val = max(label_means) if max(label_means) > 0 else 1
-        #         norm_means = [v / max_val for v in label_means]  # 归一化到 0-1
-        #
-        #         idx = np.argsort(norm_means)[-15:]
-        #         fig3 = Figure(figsize=(10, 6));
-        #         FigureCanvas(fig3)
-        #         ax3 = fig3.add_subplot(111)
-        #         ax3.barh([label_names[i] for i in idx], [norm_means[i] for i in idx], color='#ffa940')
-        #         ax3.set_title("Top 15 脑区激活 (相对强度归一化)", fontname='SimHei')
-        #         ax3.set_xlabel("Relative Intensity (0-1)")
-        #         fig3.tight_layout()
-        #         fig3.savefig(eeg_output_dir / "region_activation_bar.png", dpi=300)
-        # except Exception as e:
-        #     logger(f"脑区排名生成跳过: {e}")
-        #
-        # # 4. 频谱 PSD
-        # fs = raw.info['sfreq']
-        # freqs, psd = welch(mean_data, fs=fs, nperseg=min(len(mean_data), int(fs * 2)))
-        #
-        # fig4 = Figure(figsize=(8, 4));
-        # FigureCanvas(fig4)
-        # ax4 = fig4.add_subplot(111)
-        # # 将极小的负数平移，让 0Hz 附近作为基准起始点，或者直接观察形态
-        # psd_db = 10 * np.log10(psd + 1e-25)
-        # psd_db -= np.max(psd_db)  # 将最大值设为 0dB，观察相对衰减
-        #
-        # ax4.plot(freqs, psd_db, color='#73d13d', linewidth=2)
-        # ax4.set_xlim(1, 45)
-        # ax4.set_title("源活动相对功率谱 (归一化 dB)", fontname='SimHei')
-        # ax4.set_xlabel("Frequency (Hz)");
-        # ax4.set_ylabel("Relative Power (dB)")
-        # ax4.grid(True, linestyle='--', alpha=0.5)
-        # fig4.tight_layout()
-        # fig4.savefig(eeg_output_dir / "source_psd_analysis.png", dpi=300)
 
         logger(f"所有 4 张统计分析图已保存至: {eeg_output_dir}")
     except Exception as e:
@@ -887,10 +766,7 @@ def run_source_localization(
     analysis_band="full",
     plot_theme="auto",
 ):
-    """
-    兼容旧调用方式：
-    同步执行计算 + 弹窗
-    """
+
     result = compute_source_localization(
         bdf_path=bdf_path,
         logger=logger,

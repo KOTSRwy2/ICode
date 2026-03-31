@@ -22,11 +22,11 @@ class ClickableInfoWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        # 'i' 图标 (Info)
+        # 'i' 图标
         self.icon = IconWidget(FIF.INFO, self)
         self.icon.setFixedSize(16, 16)
 
-        # 说明文字，使用 Fluent 的弱化标签
+        # 说明文字
         self.label = CaptionLabel(text, self)
 
         layout.addWidget(self.icon)
@@ -76,7 +76,7 @@ class ClickableInfoWidget(QWidget):
             view.vBoxLayout.setSpacing(0)
 
         view.setObjectName("FlyoutView")
-        # show view
+
         w = Flyout.make(view, self.label, self.window(),aniType=FlyoutAnimationType.SLIDE_LEFT)
         view.closed.connect(w.close)
         StyleSheet.INTERACTIVE_CHART_CARD.apply(view)
@@ -116,7 +116,7 @@ class InteractiveChartCard(CardWidget):
         self.v_layout.setContentsMargins(20, 20, 20, 20)
         self.v_layout.setSpacing(12)
 
-        # === 1. 顶部栏 (Header) ===
+        # 1. 顶部栏
         self.header_layout = QHBoxLayout()
         self.title_layout = QVBoxLayout()
         self.title_layout.setSpacing(6)
@@ -238,7 +238,6 @@ class InteractiveChartCard(CardWidget):
             except Exception as e:
                 InfoBar.error("导出失败", str(e), parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
 
-    # ===== 新增：动画控制方法 =====
     def _play_animation(self):
         """播放动画"""
         js_code = """

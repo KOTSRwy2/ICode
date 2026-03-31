@@ -105,7 +105,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
                 """,
                 chart_name="全脑功能连接矩阵（AAL 脑区）",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "full_heat_map.jpg"),
-                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
             )
             card1.web_view.setFixedHeight(650)
 
@@ -130,7 +129,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="正负功能连接比例饼图",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "pie_chart.jpg"),
-                # tutorial_url="https://blog.csdn.net/sky77/article/details/149389952",
             )
             card2.web_view.setFixedHeight(500)
             # 挂载卡片 3：多时间窗口功能连接热力图
@@ -155,7 +153,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
 """,
                 chart_name="多时间窗口功能连接热力图",
                 image_url=r"app\resource\images\heat_map_windows.jpg",
-                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
             )
 
             card3.web_view.setFixedHeight(550)
@@ -182,7 +179,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
                 """,
                 chart_name="滑动窗口功能连接动态指标图",
                 image_url=os.path.join(self.base_dir, "app/resource/images", "indicators.png"),
-                # tutorial_url="https://chat.qwen.ai/c/143eeb40-1792-4113-9bc3-43a1af669976",
                 enable_animation=True,
             )
             card4.web_view.setFixedHeight(500)

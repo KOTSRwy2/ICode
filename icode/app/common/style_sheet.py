@@ -13,6 +13,5 @@ class StyleSheet(StyleSheetBase, Enum):
 
     def path(self, theme=Theme.AUTO):
         theme = qconfig.theme if theme == Theme.AUTO else theme
-        # Use absolute path to bypass resource compilation issues
         current_dir = os.path.dirname(os.path.abspath(__file__))
         return os.path.join(current_dir, '..', 'resource', theme.value.lower(), f'{self.value}.qss')

@@ -154,15 +154,13 @@ class FMRIConnectivityThread(QThread):
             windows.append((start_idx, end_idx))
             start_idx += self.step_size
 
-        # 处理最后一个不完整窗口（可选策略：补全/截断/忽略）
+
         if start_idx < n_timepoints and len(windows) > 0:
-            # 策略1：补全最后一个窗口（从末尾往前取）
             last_start = max(0, n_timepoints - self.window_size)
             if last_start != windows[-1][0]:  # 避免重复
                 windows.append((last_start, n_timepoints))
                 self.log_pyqtSignal.emit(f"补充最后一个窗口：[{last_start}, {n_timepoints})")
-            # 策略2：忽略不完整窗口（注释掉上面，打开下面）
-            # self.log_pyqtSignal.emit(f"忽略不完整窗口：起始{start_idx}，剩余{n_timepoints-start_idx}个时间点")
+
 
         return windows
 
@@ -290,36 +288,6 @@ class FMRIConnectivityThread(QThread):
 
         window_conn_matrices = []
 
-        # for window_idx, (start_idx, end_idx) in enumerate(windows):
-        #     window_ts = roi_timeseries[:, start_idx:end_idx]
-        #
-        #     window_conn = np.corrcoef(window_ts)
-        #     window_conn_matrices.append(window_conn)
-        #
-        #     mask = np.eye(n_regions, dtype=bool)
-        #     conn_vals = window_conn[~mask]
-        #
-        #     # 指标1：平均连接强度
-        #     mean_conn_strength = np.mean(np.abs(conn_vals))
-        #     # 指标2：正连接比例
-        #     pos_ratio = np.sum(conn_vals > 0) / len(conn_vals) * 100
-        #     # 指标3：负连接比例
-        #     neg_ratio = np.sum(conn_vals < 0) / len(conn_vals) * 100
-        #     # 指标4：连接矩阵的标准差（异质性）
-        #     conn_std = np.std(conn_vals)
-        #
-        #     start_time = start_idx * tr
-        #     end_time = end_idx * tr
-        #
-        #     window_metrics.append({
-        #         "window_idx": window_idx,
-        #         "start_time_s": start_time,
-        #         "end_time_s": end_time,
-        #         "mean_conn_strength": mean_conn_strength,
-        #         "pos_ratio": pos_ratio,
-        #         "neg_ratio": neg_ratio,
-        #         "conn_std": conn_std
-        #     })
         for window_idx, (start_idx, end_idx) in enumerate(windows):
             window_ts = roi_timeseries[:, start_idx:end_idx]
 
@@ -393,7 +361,7 @@ class FMRIConnectivityThread(QThread):
             horizontal_spacing=0.14
         )
         mean_strengths_clean = np.nan_to_num(mean_strengths, nan=0.0, posinf=0.0, neginf=0.0)
-        # ========== 子图 1：平均连接强度 (row=1, col=1) ==========
+
         fig.add_trace(go.Scatter(x=start_times, y=mean_strengths_clean[:1], mode='lines',legend='legend', showlegend=True,
                                  name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1,)
         # Trace 1
@@ -407,7 +375,6 @@ class FMRIConnectivityThread(QThread):
         fig.add_trace(go.Scatter(x=start_times, y=conn_stds_clean[:1], mode='lines',legend='legend3', showlegend=True,
                                  name='异质性', line=dict(color='#fe8019', width=2)), row=2, col=1)
 
-        # ========== 子图 4：还原原始循环样式 (静态显示) ==========
         # Trace 4: 时间轴
         fig.add_trace(go.Scatter(x=[0, n_timepoints * tr], y=[0, 0], mode='lines',
                                  line=dict(color='#808080', width=2), showlegend=False, hoverinfo='skip'), row=2, col=2)
@@ -416,27 +383,6 @@ class FMRIConnectivityThread(QThread):
         red_legend_shown = False
         window_trace_start_idx = 5
 
-        # # 还原你的原始循环：每个窗口都是独立的 Trace (从 Trace 5 开始)
-        # for i, (start_idx, end_idx) in enumerate(windows):
-        #     start = start_idx * tr
-        #     end = end_idx * tr
-        #     color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
-        #     show_legend = (i == 0)
-        #
-        #     fig.add_trace(
-        #         go.Scatter(
-        #             x=[start, end, end, start, start],
-        #             y=[-0.1, -0.1, 0.1, 0.1, -0.1],
-        #             fill='toself',
-        #             fillcolor=color,
-        #             line=dict(color=color, width=0),
-        #             opacity=0.5,
-        #             name='窗口覆盖' if show_legend else '',
-        #             showlegend=show_legend,
-        #             hoverinfo='x'
-        #         ),
-        #         row=2, col=2
-        #     )
         for i, (start_idx, end_idx) in enumerate(windows):
             start = start_idx * tr
             end = end_idx * tr
@@ -480,7 +426,7 @@ class FMRIConnectivityThread(QThread):
             row=2, col=2
         )
 
-        # ========== 创建帧动画：极其重要，只更新 Trace 0,1,2,3 和 进度点 ==========
+        # 创建帧动画
         frames = []
         for i in range(1, len(start_times) + 1):
             frames.append(go.Frame(
@@ -489,9 +435,9 @@ class FMRIConnectivityThread(QThread):
                     go.Scatter(x=start_times[:i], y=pos_ratios[:i],legend='legend2'),  # Trace 1
                     go.Scatter(x=start_times[:i], y=neg_ratios[:i],legend='legend2'),  # Trace 2
                     go.Scatter(x=start_times[:i], y=conn_stds_clean[:i],legend='legend3'),  # Trace 3
-                    go.Scatter(x=[start_times[i - 1]], y=[0])  # 进度点
+                    go.Scatter(x=[start_times[i - 1]], y=[0])
                 ],
-                traces=[0, 1, 2, 3, dot_trace_idx],  # 关键：跳过图四的静态色块索引
+                traces=[0, 1, 2, 3, dot_trace_idx],
                 name=str(i)
             ))
         fig.frames = frames
@@ -528,7 +474,7 @@ class FMRIConnectivityThread(QThread):
             }],
             paper_bgcolor='#FFFFFF',
             plot_bgcolor='#FFFFFF',
-            margin=dict(l=20, r=20, t=60, b=20),  # 增加底部 margin 给按钮留空间
+            margin=dict(l=20, r=20, t=60, b=20),
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080"),
             showlegend=True,
             legend=dict(
@@ -547,29 +493,28 @@ class FMRIConnectivityThread(QThread):
         )
 
         fig.update_layout(
-            # 子图 1 图例 (左上)
+            # 子图 1 图例
             legend=dict(
                 x=0.35, y=1.1, xanchor='left', yanchor='top',
                 **common_style
             ),
-            # 子图 2 图例 (右上)
+            # 子图 2 图例
             legend2=dict(
                 x=0.94, y=1.15, xanchor='right', yanchor='top',
                 **common_style
             ),
-            # 子图 3 图例 (左下) - 这里的 y 值需要根据你的 vertical_spacing 调整
+            # 子图 3 图例
             legend3=dict(
                 x=0.35, y=0.45, xanchor='left', yanchor='top',
                 **common_style
             ),
-            # 子图 4 图例 (右下)
+            # 子图 4 图例
             legend4=dict(
                 x=0.94, y=0.50, xanchor='right', yanchor='top',
                 **common_style
             )
         )
 
-        # 移除之前可能冲突的全局 showlegend=True 设置
         fig.update_layout(showlegend=True)
 
         # ========== 更新各子图的坐标轴配置 ==========
@@ -653,8 +598,7 @@ class FMRIConnectivityThread(QThread):
             'frame_display': False
         })
 
-        # 3. 绘制典型窗口的连接矩阵热力图（自适应选择关键窗口）
-        # 按窗口数自适应选择展示数量（最多5个）
+        # 3. 绘制典型窗口的连接矩阵热力图
         self.log_pyqtSignal.emit("生成连接矩阵热力图动画...")
 
         n_show = min(5, n_windows)
@@ -671,7 +615,7 @@ class FMRIConnectivityThread(QThread):
             horizontal_spacing=0.03,
             vertical_spacing=0.01
         )
-        # ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000']
+
         custom_colorscale = [
             [0.0, '#0000FF'],
             [0.25, '#0080FF'],
@@ -737,7 +681,6 @@ class FMRIConnectivityThread(QThread):
                 title='脑区索引',
                 gridcolor='rgba(60,60,60,1)',
                 tickfont=dict(family="Segoe UI, Microsoft YaHei", size=8, color="#000000"),
-                # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#FFFFFF"),
                 row=1,
                 col=idx,
                 showticklabels=True,
@@ -852,7 +795,6 @@ class FMRIConnectivityThread(QThread):
                 center_world = nib.affines.apply_affine(roi_img.affine, center_voxel)
                 aal_coords_full.append(center_world)
 
-                # 仅在这里过滤，只给3D图使用
                 x, y, z = center_world
                 if (X_RANGE[0] <= x <= X_RANGE[1]):
                     if not ((y < -30 and z < -20) or (-100 < y < -30 and -20 < x < 20 and z < 20)):
@@ -889,28 +831,6 @@ class FMRIConnectivityThread(QThread):
         if base_name.endswith('.nii'):
             base_name = base_name[:-4]
 
-        # # 2. 绘制连接矩阵热力图
-        # plt.figure(figsize=(15, 12))
-        # plt.style.use('dark_background')
-        # cmap = LinearSegmentedColormap.from_list('custom_coolwarm',
-        #                                          ['#0000FF', '#0080FF', '#FFFFFF', '#FF8000', '#FF0000'],
-        #                                          N=256)
-        #
-        # im = plt.imshow(conn_matrix, cmap=cmap, vmin=-1, vmax=1)
-        # cbar = plt.colorbar(im, label="皮尔逊相关系数", shrink=0.8, pad=0.02,
-        #                     ticks=np.linspace(-1, 1, 9),
-        #                     fraction=0.046, aspect=20)
-        # cbar.ax.tick_params(labelsize=10, colors='white')
-        # cbar.set_label(label="皮尔逊相关系数", fontsize=12, color='white')
-        # plt.title("fMRI功能连接矩阵（完整AAL脑区）", fontsize=14, color="orangered")
-        # plt.xlabel("脑区索引", fontsize=12, color="white")
-        # plt.ylabel("脑区索引", fontsize=12, color="white")
-        # plt.xticks(color="white")
-        # plt.yticks(color="white")
-        # heatmap_path = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.png")
-        # plt.savefig(heatmap_path, dpi=300, bbox_inches="tight", facecolor="#000000")
-        # plt.close()
-        # self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{heatmap_path}")
         results_paths = {}
 
         custom_colorscale = [
@@ -1005,11 +925,10 @@ class FMRIConnectivityThread(QThread):
 
         self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{path_full_heatmap}")
 
-        # 新增：绘制正负连接饼图
         pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir)
         results_paths['pie_path'] = pie_path
         results_paths['path_full_heatmap'] = path_full_heatmap
-        # ========== 新增：滑动窗口可视化 ==========
+
         path_metrics, path_heatmap = self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr)
         results_paths['path_metrics'] = path_metrics
         results_paths['path_heatmap'] = path_heatmap
@@ -1017,7 +936,6 @@ class FMRIConnectivityThread(QThread):
 
         html_path = os.path.join(self.output_dir, f"{base_name}_connectivity.html")
 
-        # edge_threshold = "95%" if len(unique_labels) > 50 else "90%"
         edge_threshold = "90%"
 
         conn_matrix_for_3d = conn_matrix[valid_indices_3d, :][:, valid_indices_3d]

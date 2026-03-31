@@ -100,25 +100,6 @@ def _get_band_range(analysis_band: str):
 
 def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector):
     """绘制功能连接矩阵热图"""
-    # fig = Figure(figsize=(10, 8))
-    # FigureCanvas(fig)
-    # ax = fig.add_subplot(111)
-    #
-    # # 绘制热力图，由于是相关系数，范围设为 0 到 1 (或根据数据百分位)
-    # im = ax.imshow(con_matrix, cmap='RdBu_r', vmin=0, vmax=np.percentile(con_matrix, 98))
-    # fig.colorbar(im, ax=ax, label='Correlation Coefficient')
-    #
-    # ax.set_title(f"Connectivity Matrix ({bdf_stem})", fontsize=14)
-    #
-    # # 脑区超过50个就不显示具体名字，否则太挤
-    # if len(label_names) <= 50:
-    #     ax.set_xticks(range(len(label_names)))
-    #     ax.set_yticks(range(len(label_names)))
-    #     ax.set_xticklabels(label_names, rotation=90, fontsize=6)
-    #     ax.set_yticklabels(label_names, fontsize=6)
-    #
-    # fig.tight_layout()
-    # fig.savefig(output_dir / f"{bdf_stem}_fc_matrix.png", dpi=300)
     custom_colorscale = [
             [0.0, '#0000FF'],
             [0.25, '#0080FF'],
@@ -184,7 +165,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
         ticks='outside',
         range=[-0.5, len(label_names) - 0.5],
         showgrid=True,
-        autorange='reversed'  # 热力图 Y 轴反向，与矩阵一致
+        autorange='reversed'
     )
 
     # ===== 保存文件 =====
@@ -226,15 +207,6 @@ def _plot_fc_node_degree(con_matrix, label_names, output_dir, bdf_stem, html_inj
     top_names = [label_names[i] for i in idx]
     top_values = node_degrees[idx]
 
-    # fig = Figure(figsize=(10, 6))
-    # FigureCanvas(fig)
-    # ax = fig.add_subplot(111)
-    # ax.barh(top_names, top_values, color='#13c2c2')
-    # ax.set_title(f"Network Hubs Top {num_top}", fontsize=14)
-    # ax.set_xlabel("Weighted Node Degree")
-    #
-    # fig.tight_layout()
-    # fig.savefig(output_dir / f"{bdf_stem}_fc_hubs.png", dpi=300)
     fig = go.Figure(
         data=go.Bar(
             x=top_values,
@@ -309,20 +281,6 @@ def _plot_fc_distribution(con_matrix, output_dir, bdf_stem,html_injector):
     # 提取矩阵上三角部分（排除对角线自身相关）
     upper_idx = np.triu_indices(len(con_matrix), k=1)
     weights = con_matrix[upper_idx]
-
-    # fig = Figure(figsize=(8, 5))
-    # FigureCanvas(fig)
-    # ax = fig.add_subplot(111)
-    #
-    # # 绘制直方图和核密度估计曲线
-    # ax.hist(weights, bins=50, color='#69c0ff', edgecolor='white', alpha=0.7, density=True)
-    # ax.set_title(f"Connectivity Weight Distribution ({bdf_stem})", fontsize=12)
-    # ax.set_xlabel("Correlation Coefficient")
-    # ax.set_ylabel("Density")
-    # ax.grid(axis='y', linestyle='--', alpha=0.4)
-    #
-    # fig.tight_layout()
-    # fig.savefig(output_dir / f"{bdf_stem}_fc_distribution.png", dpi=300)
 
     fig = go.Figure(
         data=go.Histogram(
@@ -415,28 +373,7 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
     upper_idx = np.triu_indices(len(con_matrix), k=1)
     weight_vector = con_matrix[upper_idx]
 
-    # # 4. 绘图
-    # fig = Figure(figsize=(8, 5))
-    # FigureCanvas(fig)
-    # ax = fig.add_subplot(111)
-    #
-    # # 绘制散点，使用较小的点和透明度以防重叠
-    # ax.scatter(dist_vector, weight_vector, alpha=0.3, s=10, color='#ff7875')
-    #
-    # # 添加趋势线
-    # if len(dist_vector) > 1:
-    #     z = np.polyfit(dist_vector, weight_vector, 1)
-    #     p = np.poly1d(z)
-    #     ax.plot(dist_vector, p(dist_vector), "r--", alpha=0.8, label="Trend Line")
-    #
-    # ax.set_title("Distance vs. Connectivity Strength", fontsize=12)
-    # ax.set_xlabel("Physical Distance (mm)")
-    # ax.set_ylabel("Connectivity (Correlation)")
-    # ax.legend()
-    #
-    # fig.tight_layout()
-    # fig.savefig(output_dir / f"{bdf_stem}_fc_distance_corr.png", dpi=300)
-
+    # 4. 绘图
     fig = go.Figure(
         data=go.Scatter(
             x=dist_vector,

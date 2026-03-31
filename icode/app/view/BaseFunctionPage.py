@@ -32,20 +32,19 @@ class VisualizationWebWindow(QMainWindow):
         self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
 
 
-# ==========================================
-# 基础功能页面模板 (包含固定底部的进度状态栏)
-# ==========================================
+
+# 基础功能页面模板
 class BaseFunctionPage(ScrollArea):
     """提取四大功能页的共用逻辑：标题、文件选择、运行按钮、以及置底的进度条"""
     def __init__(self, title: str, description: str, module_name: str, parent=None):
         super().__init__(parent=parent)
         self.module_name = module_name
         self.setObjectName(title.replace(" ", "_"))
-        # 保留圆角与无边框，不覆盖 Fluent 的主题背景绘制
+
         self.setWidgetResizable(True)
         self.setFrameShape(self.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # 移除强制样式覆盖，改用 FluentWidgets 推荐的透明化配置
+
         self.viewport().setObjectName("FunctionPageViewport")
 
         self.view = QWidget(self)
@@ -65,14 +64,14 @@ class BaseFunctionPage(ScrollArea):
         self.main_layout.addWidget(self.title_label)
         self.main_layout.addWidget(self.desc_label)
 
-        # 内容填充区 (子类在这里添加自己的输入和设置控件)
+        # 内容填充区
         self.content_layout = QVBoxLayout()
         self.content_layout.setSpacing(16)
         self.main_layout.addLayout(self.content_layout)
 
         self.main_layout.addStretch(1)
 
-        # 底部状态展示区 (固定在页面下方)
+        # 底部状态展示区
         self._build_status_bar()
         self.main_layout.addWidget(self.status_container)
 
@@ -120,7 +119,6 @@ class BaseFunctionPage(ScrollArea):
         return True
 
     def show_success_dialog(self, title: str, content: str):
-        # 优化原有的弹窗，使用 InfoBar 组件在页面内进行不打断的通知
         InfoBar.success(
             title=title,
             content=content,
