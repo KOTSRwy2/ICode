@@ -28,7 +28,6 @@ from app.view.FMRIConnectivityPage import FMRIConnectivityPage
 from app.view.LogReportPage import LogReportPage
 from app.view.SettingsPage import SettingsPage
 from app.common import resource
-import atexit
 from app.view.CustomWebEngineView import cleanup_all_profiles
 
 class EEGFMRIFluentApp(FluentWindow):
@@ -115,7 +114,6 @@ class EEGFMRIFluentApp(FluentWindow):
         if self.isMicaEffectEnabled():
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
-cleanup_all_profiles()
 if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -130,6 +128,6 @@ if __name__ == "__main__":
     window = EEGFMRIFluentApp()
     window.show()
 
-    atexit.register(lambda: cleanup_all_profiles())
+    app.aboutToQuit.connect(cleanup_all_profiles)
 
     sys.exit(app.exec_())
