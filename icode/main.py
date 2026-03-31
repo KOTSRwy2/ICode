@@ -6,19 +6,16 @@ main.py
 """
 
 import sys
-from PyQt5.QtCore import Qt, QSize, QTimer
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentWindow,
     NavigationItemPosition,
-    setTheme,
     Theme,
     setThemeColor,
     qconfig,
     SystemThemeListener,
     isDarkTheme,
-    FluentStyleSheet
 )
 from qfluentwidgets import FluentIcon as FIF
 from app.common.style_sheet import StyleSheet
@@ -26,15 +23,20 @@ from app.common.config import cfg
 import qfluentwidgets, sys
 
 # 导入业务独立页面
-from app.pages import (
-    EEGSourcePage,
-    EEGConnectivityPage,
-    FMRIActivationPage,
-    FMRIConnectivityPage,
-    LogReportPage,
-    SettingsPage
-)
-
+# from app.pages import (
+#     EEGSourcePage,
+#     EEGConnectivityPage,
+#     FMRIActivationPage,
+#     FMRIConnectivityPage,
+#     LogReportPage,
+#     SettingsPage
+# )
+from app.view.EEGSourcePage import EEGSourcePage
+from app.view.EEGConnectivityPage import EEGConnectivityPage
+from app.view.FMRIActivationPage import FMRIActivationPage
+from app.view.FMRIConnectivityPage import FMRIConnectivityPage
+from app.view.LogReportPage import LogReportPage
+from app.view.SettingsPage import SettingsPage
 from app.common import resource
 
 class EEGFMRIFluentApp(FluentWindow):
@@ -132,7 +134,6 @@ if __name__ == "__main__":
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     app = QApplication(sys.argv)
-    
     # 解决部分布局边缘可能触发的本地控件样式杂乱
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
 
