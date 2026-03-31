@@ -70,7 +70,7 @@ class EEGFMRIFluentApp(FluentWindow):
         StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):
-        self.resize(1100, 780)
+        self.resize(1150, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
 
         # setThemeColor("#1677ff")

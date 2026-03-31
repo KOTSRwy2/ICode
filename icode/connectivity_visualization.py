@@ -16,6 +16,12 @@ import pyvista as pv
 import numpy as np
 from mne.datasets import fetch_fsaverage
 
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from PlotlyHTMLInjector import PlotlyHTMLInjector
 
 def _is_vtkjs_404_page(html_path: Path) -> bool:
     """检测导出的 HTML 是否实际上是 VTK.js 的 404 模板页"""
@@ -98,6 +104,444 @@ def _get_band_range(analysis_band: str):
 
     return band_map[analysis_band]
 
+
+def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector):
+    """绘制功能连接矩阵热图"""
+    # fig = Figure(figsize=(10, 8))
+    # FigureCanvas(fig)
+    # ax = fig.add_subplot(111)
+    #
+    # # 绘制热力图，由于是相关系数，范围设为 0 到 1 (或根据数据百分位)
+    # im = ax.imshow(con_matrix, cmap='RdBu_r', vmin=0, vmax=np.percentile(con_matrix, 98))
+    # fig.colorbar(im, ax=ax, label='Correlation Coefficient')
+    #
+    # ax.set_title(f"Connectivity Matrix ({bdf_stem})", fontsize=14)
+    #
+    # # 脑区超过50个就不显示具体名字，否则太挤
+    # if len(label_names) <= 50:
+    #     ax.set_xticks(range(len(label_names)))
+    #     ax.set_yticks(range(len(label_names)))
+    #     ax.set_xticklabels(label_names, rotation=90, fontsize=6)
+    #     ax.set_yticklabels(label_names, fontsize=6)
+    #
+    # fig.tight_layout()
+    # fig.savefig(output_dir / f"{bdf_stem}_fc_matrix.png", dpi=300)
+    custom_colorscale = [
+        [0.0, "#053061"],
+        [0.1, "#2166ac"],
+        [0.2, "#4393c3"],
+        [0.3, "#92c5de"],
+        [0.4, "#d1e5f0"],
+        [0.5, "#f7f7f7"],
+        [0.6, "#f4a582"],
+        [0.7, "#d6604d"],
+        [0.8, "#b2182b"],
+        [0.9, "#67001f"],
+        [1.0, "#2d0000"]
+    ]
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=con_matrix,
+            colorscale=custom_colorscale,
+            zmin=0,
+            zmax=np.percentile(con_matrix, 98),
+            colorbar=dict(
+                title='Correlation<br>Coefficient',
+                tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+                tickformat='.2f',
+                len=0.8,
+                thickness=20,
+                x=1.02,
+                xpad=10
+            ),
+            hovertemplate='Region Y: %{y}<br>Region X: %{x}<br>Correlation: %{z:.3f}<extra></extra>',
+            showscale=True
+        )
+    )
+
+    # ===== 更新布局 =====
+    fig.update_layout(
+        title=dict(
+            text=f'Connectivity Matrix ({bdf_stem})',
+            font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
+            x=0.5
+        ),
+        paper_bgcolor='#FFFFFF',
+        plot_bgcolor='#FFFFFF',
+        margin=dict(l=60, r=100, t=60, b=60),
+        font=dict(family="Segoe UI, Arial", color="#000000", size=10),
+        autosize=True,
+        showlegend=False
+    )
+
+    # ===== 更新坐标轴配置 =====
+    fig.update_xaxes(
+        title='Brain Region Index',
+        tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fig.update_yaxes(
+        title='Brain Region Index',
+        tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True,
+        autorange='reversed'  # 热力图 Y 轴反向，与矩阵一致
+    )
+
+    # ===== 保存文件 =====
+    fc_matrix_path = os.path.join(output_dir, f"{bdf_stem}_fc_matrix.html")
+    fig.write_html(
+        fc_matrix_path,
+        include_plotlyjs=True,
+        full_html=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'scrollZoom': True,
+            'displaylogo': False,
+            'autosizable': True,
+            'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+        }
+    )
+
+    html_injector.inject_all(fc_matrix_path, options={
+        'fluent_css': True,
+        'animation_control': False,
+        'debug_info': False,
+        'frame_display': False
+    })
+
+    print(f"功能连接矩阵热图已保存：{fc_matrix_path}")
+    return fc_matrix_path
+
+
+def _plot_fc_node_degree(con_matrix, label_names, output_dir, bdf_stem, html_injector):
+    """绘制节点度（中心枢纽）排名图"""
+    # 计算每个节点的加权度（所有连接强度之和）
+    node_degrees = np.sum(np.abs(con_matrix), axis=0)
+
+    # 取前 15 个最重要的核心节点
+    num_top = min(15, len(label_names))
+    idx = np.argsort(node_degrees)[-num_top:]
+
+    top_names = [label_names[i] for i in idx]
+    top_values = node_degrees[idx]
+
+    # fig = Figure(figsize=(10, 6))
+    # FigureCanvas(fig)
+    # ax = fig.add_subplot(111)
+    # ax.barh(top_names, top_values, color='#13c2c2')
+    # ax.set_title(f"Network Hubs Top {num_top}", fontsize=14)
+    # ax.set_xlabel("Weighted Node Degree")
+    #
+    # fig.tight_layout()
+    # fig.savefig(output_dir / f"{bdf_stem}_fc_hubs.png", dpi=300)
+    fig = go.Figure(
+        data=go.Bar(
+            x=top_values,
+            y=top_names,
+            orientation='h',
+            marker=dict(
+                color='#13c2c2',
+                line=dict(color='#000000', width=0.5)
+            ),
+            hovertemplate='Region: %{y}<br>Weighted Degree: %{x:.3f}<extra></extra>'
+        )
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=f'Network Hubs Top {num_top}',
+            font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
+            x=0.5
+        ),
+        paper_bgcolor='#FFFFFF',
+        plot_bgcolor='#FFFFFF',
+        margin=dict(l=150, r=60, t=60, b=40),  # 左侧留空间给脑区名称
+        font=dict(family="Segoe UI, Arial", color="#000000", size=10),
+        autosize=True,
+        showlegend=False
+    )
+
+    fig.update_xaxes(
+        title='Weighted Node Degree',
+        tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fig.update_yaxes(
+        title='Brain Region',
+        tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fc_hubs_path = os.path.join(output_dir, f"{bdf_stem}_fc_hubs.html")
+    fig.write_html(
+        fc_hubs_path,
+        include_plotlyjs=True,
+        full_html=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'scrollZoom': False,
+            'displaylogo': False,
+            'autosizable': True
+        }
+    )
+
+    html_injector.inject_all(fc_hubs_path, options={
+        'fluent_css': True,
+        'animation_control': False,
+        'debug_info': False,
+        'frame_display': False
+    })
+
+    print(f"节点度排名图已保存：{fc_hubs_path}")
+    return fc_hubs_path
+
+def _plot_fc_distribution(con_matrix, output_dir, bdf_stem,html_injector):
+    """绘制连接强度分布直方图"""
+    # 提取矩阵上三角部分（排除对角线自身相关）
+    upper_idx = np.triu_indices(len(con_matrix), k=1)
+    weights = con_matrix[upper_idx]
+
+    # fig = Figure(figsize=(8, 5))
+    # FigureCanvas(fig)
+    # ax = fig.add_subplot(111)
+    #
+    # # 绘制直方图和核密度估计曲线
+    # ax.hist(weights, bins=50, color='#69c0ff', edgecolor='white', alpha=0.7, density=True)
+    # ax.set_title(f"Connectivity Weight Distribution ({bdf_stem})", fontsize=12)
+    # ax.set_xlabel("Correlation Coefficient")
+    # ax.set_ylabel("Density")
+    # ax.grid(axis='y', linestyle='--', alpha=0.4)
+    #
+    # fig.tight_layout()
+    # fig.savefig(output_dir / f"{bdf_stem}_fc_distribution.png", dpi=300)
+
+    fig = go.Figure(
+        data=go.Histogram(
+            x=weights,
+            nbinsx=50,
+            marker=dict(
+                color='#69c0ff',
+                line=dict(color='#FFFFFF', width=0.5)
+            ),
+            opacity=0.7,
+            hovertemplate='Correlation: %{x:.3f}<br>Density: %{y}<extra></extra>'
+        )
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=f'Connectivity Weight Distribution ({bdf_stem})',
+            font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
+            x=0.5
+        ),
+        paper_bgcolor='#FFFFFF',
+        plot_bgcolor='#FFFFFF',
+        margin=dict(l=60, r=40, t=60, b=60),
+        font=dict(family="Segoe UI, Arial", color="#000000", size=10),
+        autosize=True,
+        showlegend=False
+    )
+
+    fig.update_xaxes(
+        title='Correlation Coefficient',
+        tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fig.update_yaxes(
+        title='Density',
+        tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fc_distribution_path = os.path.join(output_dir, f"{bdf_stem}_fc_distribution.html")
+    fig.write_html(
+        fc_distribution_path,
+        include_plotlyjs=True,
+        full_html=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'scrollZoom': False,
+            'displaylogo': False,
+            'autosizable': True
+        }
+    )
+
+    html_injector.inject_all(fc_distribution_path, options={
+        'fluent_css': True,
+        'animation_control': False,
+        'debug_info': False,
+        'frame_display': False
+    })
+
+    print(f"连接强度分布图已保存：{fc_distribution_path}")
+    return fc_distribution_path
+
+
+def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output_dir, bdf_stem,html_injector):
+    """绘制连接距离与强度的相关性散点图"""
+    import numpy as np
+    from scipy.spatial.distance import pdist
+
+    # 1. 计算每个脑区中心的坐标
+    coords = []
+    for label in labels:
+        v_idx = label.center_of_mass(subject=subject, subjects_dir=subjects_dir)
+        # 获取对应半球的坐标数据
+        pos = mne.read_surface(Path(subjects_dir) / subject / 'surf' / f"{label.hemi}.white")[0][v_idx]
+        coords.append(pos)
+    coords = np.array(coords)
+
+    # 2. 计算两两脑区间的欧几里得距离
+    dist_vector = pdist(coords)
+
+    # 3. 提取对应的连接强度
+    upper_idx = np.triu_indices(len(con_matrix), k=1)
+    weight_vector = con_matrix[upper_idx]
+
+    # # 4. 绘图
+    # fig = Figure(figsize=(8, 5))
+    # FigureCanvas(fig)
+    # ax = fig.add_subplot(111)
+    #
+    # # 绘制散点，使用较小的点和透明度以防重叠
+    # ax.scatter(dist_vector, weight_vector, alpha=0.3, s=10, color='#ff7875')
+    #
+    # # 添加趋势线
+    # if len(dist_vector) > 1:
+    #     z = np.polyfit(dist_vector, weight_vector, 1)
+    #     p = np.poly1d(z)
+    #     ax.plot(dist_vector, p(dist_vector), "r--", alpha=0.8, label="Trend Line")
+    #
+    # ax.set_title("Distance vs. Connectivity Strength", fontsize=12)
+    # ax.set_xlabel("Physical Distance (mm)")
+    # ax.set_ylabel("Connectivity (Correlation)")
+    # ax.legend()
+    #
+    # fig.tight_layout()
+    # fig.savefig(output_dir / f"{bdf_stem}_fc_distance_corr.png", dpi=300)
+
+    fig = go.Figure(
+        data=go.Scatter(
+            x=dist_vector,
+            y=weight_vector,
+            mode='markers',
+            marker=dict(
+                size=6,
+                color='#ff7875',
+                opacity=0.3,
+                line=dict(color='#000000', width=0.5)
+            ),
+            hovertemplate='Distance: %{x:.2f} mm<br>Connectivity: %{y:.3f}<extra></extra>',
+            name='Data Points'
+        )
+    )
+
+    # 添加趋势线
+    if len(dist_vector) > 1:
+        z = np.polyfit(dist_vector, weight_vector, 1)
+        p = np.poly1d(z)
+        trend_x = np.linspace(dist_vector.min(), dist_vector.max(), 100)
+        trend_y = p(trend_x)
+
+        fig.add_trace(
+            go.Scatter(
+                x=trend_x,
+                y=trend_y,
+                mode='lines',
+                line=dict(color='#FF0000', width=2, dash='dash'),
+                name='Trend Line',
+                hovertemplate='Distance: %{x:.2f} mm<br>Trend: %{y:.3f}<extra></extra>'
+            )
+        )
+
+    fig.update_layout(
+        title=dict(
+            text='Distance vs. Connectivity Strength',
+            font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
+            x=0.5
+        ),
+        paper_bgcolor='#FFFFFF',
+        plot_bgcolor='#FFFFFF',
+        margin=dict(l=60, r=40, t=60, b=60),
+        font=dict(family="Segoe UI, Arial", color="#000000", size=10),
+        autosize=True,
+        showlegend=True,
+        legend=dict(
+            x=0.98,
+            y=0.98,
+            xanchor='right',
+            yanchor='top',
+            bgcolor='rgba(255,255,255,0.8)',
+            font=dict(size=9, color="#000000")
+        )
+    )
+
+    fig.update_xaxes(
+        title='Physical Distance (mm)',
+        tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fig.update_yaxes(
+        title='Connectivity (Correlation)',
+        tickfont=dict(family="Segoe UI, Arial", size=9, color="#000000"),
+        gridcolor='rgba(128,128,128,0.2)',
+        showticklabels=True,
+        ticks='outside',
+        showgrid=True
+    )
+
+    fc_distance_path = os.path.join(output_dir, f"{bdf_stem}_fc_distance_corr.html")
+    fig.write_html(
+        fc_distance_path,
+        include_plotlyjs=True,
+        full_html=True,
+        config={
+            'responsive': True,
+            'displayModeBar': True,
+            'scrollZoom': True,
+            'displaylogo': False,
+            'autosizable': True
+        }
+    )
+
+    html_injector.inject_all(fc_distance_path, options={
+        'fluent_css': True,
+        'animation_control': False,
+        'debug_info': False,
+        'frame_display': False
+    })
+
+    print(f"距离 - 强度相关性图已保存：{fc_distance_path}")
+    return fc_distance_path
 
 def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
     """后台线程执行：只做 EEG 功能连接计算，不创建 3D 场景"""
@@ -247,14 +691,53 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
 
     logger("后台计算完成，等待主线程生成 3D 场景并导出 HTML...")
     logger("========== 功能连接计算结束 ==========")
+    # ======= 新增：统计图生成开始 =======
+    outputs_dir = _get_outputs_dir()
+    bdf_stem = Path(bdf_path).stem
+    label_names = [lab.name for lab in labels]
+
+    html_injector = PlotlyHTMLInjector(str(outputs_dir))
+    fc_matrix_path = ""
+    fc_hubs_path = ""
+    fc_distribution_path = ""
+    fc_distance_path = ""
+
+    try:
+        logger("正在生成功能连接多维度统计分析图...")
+        # 之前的两个图
+        fc_matrix_path = _plot_fc_matrix(connectivity_matrix, label_names, outputs_dir, bdf_stem, html_injector)
+        fc_hubs_path = _plot_fc_node_degree(connectivity_matrix, label_names, outputs_dir, bdf_stem, html_injector)
+
+        # 新增的两个图
+        fc_distribution_path = _plot_fc_distribution(connectivity_matrix, outputs_dir, bdf_stem, html_injector)
+        fc_distance_path = _plot_fc_distance_relation(
+            connectivity_matrix, labels, subject, subjects_dir, outputs_dir, bdf_stem, html_injector
+        )
+
+        logger(f"所有 FC 统计图（共4张）已保存至：{outputs_dir}")
+    except Exception as e:
+        logger(f"部分统计图生成失败: {str(e)}")
+        import traceback
+        logger(traceback.format_exc())
+    # ======= 新增：统计图生成结束 =======
+
+    output_html = outputs_dir / f"{bdf_stem}_connectivity_map.html"
+
+    logger("后台计算完成，等待主线程生成 3D 场景并导出 HTML...")
+    logger("========== 功能连接计算结束 ==========")
 
     return {
         "subject": subject,
         "subjects_dir": str(subjects_dir),
         "labels": labels,
+        "label_names": label_names,  # 这里也返回一下，方便后面使用
         "connectivity_matrix": connectivity_matrix,
         "output_html": str(output_html),
         "band_label": band_label,
+        "fc_matrix_path": fc_matrix_path,
+        "fc_hubs_path": fc_hubs_path,
+        "fc_distribution_path": fc_distribution_path,
+        "fc_distance_path": fc_distance_path,
     }
 
 
@@ -268,6 +751,17 @@ def render_connectivity_html(result, logger=None):
     labels = result["labels"]
     connectivity_matrix = result["connectivity_matrix"]
     output_html = Path(result["output_html"])
+    fc_matrix_path = result["fc_matrix_path"]
+    fc_hubs_path = result["fc_hubs_path"]
+    fc_distribution_path = result["fc_distribution_path"]
+    fc_distance_path = result["fc_distance_path"]
+
+    results_path = {}
+    results_path['main'] = str(output_html)
+    results_path['fc_matrix_path'] = fc_matrix_path
+    results_path['fc_hubs_path'] = fc_hubs_path
+    results_path['fc_distribution_path'] = fc_distribution_path
+    results_path['fc_distance_path'] = fc_distance_path
 
     logger("========== 主线程渲染开始 ==========")
 
@@ -368,7 +862,7 @@ def render_connectivity_html(result, logger=None):
     logger("功能连接可视化完成。")
     logger("========== 主线程渲染结束 ==========")
 
-    return str(output_html)
+    return results_path
 
 
 def run_connectivity_visualization(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
