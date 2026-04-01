@@ -362,17 +362,17 @@ class FMRIConnectivityThread(QThread):
         )
         mean_strengths_clean = np.nan_to_num(mean_strengths, nan=0.0, posinf=0.0, neginf=0.0)
 
-        fig.add_trace(go.Scatter(x=start_times, y=mean_strengths_clean[:1], mode='lines',legend='legend', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=mean_strengths_clean, mode='lines',legend='legend', showlegend=True,
                                  name='平均连接强度', line=dict(color='#1677ff', width=3)), row=1, col=1,)
         # Trace 1
-        fig.add_trace(go.Scatter(x=start_times, y=pos_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=pos_ratios, mode='lines',legend='legend2', showlegend=True,
                                  name='正连接', line=dict(color='#E74C3C', width=2)), row=1, col=2)
         # Trace 2
-        fig.add_trace(go.Scatter(x=start_times, y=neg_ratios[:1], mode='lines',legend='legend2', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=neg_ratios, mode='lines',legend='legend2', showlegend=True,
                                  name='负连接', line=dict(color='#3498DB', width=2)), row=1, col=2)
         # Trace 3
         conn_stds_clean = np.nan_to_num(conn_stds, nan=0.0, posinf=0.0, neginf=0.0)
-        fig.add_trace(go.Scatter(x=start_times, y=conn_stds_clean[:1], mode='lines',legend='legend3', showlegend=True,
+        fig.add_trace(go.Scatter(x=start_times, y=conn_stds_clean, mode='lines',legend='legend3', showlegend=True,
                                  name='异质性', line=dict(color='#fe8019', width=2)), row=2, col=1)
 
         # Trace 4: 时间轴
@@ -825,7 +825,7 @@ class FMRIConnectivityThread(QThread):
         # 最后把所有 NaN 换成 0
         conn_matrix = np.nan_to_num(conn_matrix, nan=0.0)
         np.fill_diagonal(conn_matrix, 1.0)
-        self.log_pyqtSignal.emit(f"生成 {conn_matrix.shape[0]} × {conn_matrix.shape[1]} 功能连接矩阵")
+        self.log_pyqtSignal.emit(f"生成功能连接矩阵")
 
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
