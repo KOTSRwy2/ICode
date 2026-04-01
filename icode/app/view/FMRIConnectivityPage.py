@@ -17,7 +17,7 @@ from ..common.style_sheet import StyleSheet
 
 class FMRIConnectivityPage(BaseFunctionPage):
     def __init__(self, parent=None):
-        super().__init__("fMRI 功能连接分析", "读取 NIfTI 文件执行 fMRI 脑功能连接 3D 可视化生成交互式脑网络图，在主界面展示功能连接矩阵热力图、正负连接比例饼图、四项指标合一的滑动窗口时序图、关键窗口连接矩阵图集共 4 张多维度统计分析图表，并输出时序指标 CSV 文件与全窗口连接矩阵 npy 文件。", MODULE_FMRI_CONN, parent)
+        super().__init__("fMRI 功能连接分析", "读取 NIfTI 文件执行 fMRI 脑功能连接生成 3D 可视化交互式脑网络图，在主界面展示功能连接矩阵热力图、正负连接比例饼图、四项指标合一的滑动窗口时序图、关键窗口连接矩阵图集共 4 张多维度统计分析图表，并输出时序指标 CSV 文件与全窗口连接矩阵 npy 文件。", MODULE_FMRI_CONN, parent)
         self.fmri_path = ""
         self._init_ui()
 

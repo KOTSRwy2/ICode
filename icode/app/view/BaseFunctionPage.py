@@ -14,6 +14,7 @@ from qfluentwidgets import (
 from .CustomWebEngineView import CustomWebEngineView
 from ..common.style_sheet import StyleSheet
 from pathlib import Path
+from ..common.path_utils import get_project_root
 
 class VisualizationWebWindow(QMainWindow):
     """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
@@ -78,7 +79,7 @@ class BaseFunctionPage(ScrollArea):
         self.setWidget(self.view)
         self.worker = None # 后台工作线程引用，防止被回收
         self.view.setObjectName('view')
-        self.base_dir = Path(__file__).resolve().parent.parent.parent
+        self.base_dir = get_project_root()
 
     def _build_status_bar(self):
         # 进度状态外层布局

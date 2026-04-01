@@ -12,6 +12,7 @@ from pathlib import Path
 import mne
 import numpy as np
 from mne.datasets import fetch_fsaverage
+from ..common.path_utils import get_resource_path, get_runtime_path
 
 import plotly.graph_objects as go
 from .PlotlyHTMLInjector import PlotlyHTMLInjector
@@ -37,38 +38,43 @@ def _default_logger(msg: str) -> None:
 
 def _get_project_root() -> Path:
     """返回当前项目根目录"""
-    return Path(__file__).resolve().parent.parent.parent
+    return get_resource_path()
 
 
 def _get_assets_dir() -> Path:
     """返回 assets 文件夹路径，不存在则自动创建"""
-    assets_dir = _get_project_root() / "assets"
+    assets_dir = get_runtime_path("assets")
     assets_dir.mkdir(exist_ok=True)
     return assets_dir
 
 
 def _get_outputs_dir() -> Path:
     """返回输出目录 outputs/EEG，不存在则自动创建"""
-    outputs_dir = _get_project_root() / "outputs" / "EEG"
+    outputs_dir = get_runtime_path("outputs", "EEG")
     outputs_dir.mkdir(exist_ok=True)
     return outputs_dir
 
 
 def _prepare_fsaverage(logger) -> tuple[Path, Path, Path]:
     """准备 ./assets 下的 fsaverage 模板"""
-    assets_dir = _get_assets_dir()
-    fs_dir = assets_dir / "fsaverage"
+    bundled_fs_dir = get_resource_path("assets", "fsaverage")
+    fs_dir = bundled_fs_dir
 
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
 
-    if not fs_dir.exists() or not src_path.exists() or not bem_path.exists():
+    if fs_dir.exists() and src_path.exists() and bem_path.exists():
+        logger(f"检测到内置 fsaverage 模板：{fs_dir}")
+    else:
+        assets_dir = _get_assets_dir()
+        fs_dir = assets_dir / "fsaverage"
+        src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
+        bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
+
         logger("未检测到完整的本地 fsaverage 模板，正在下载到 assets 文件夹...")
         logger(f"下载目录：{assets_dir}")
         fs_dir = Path(fetch_fsaverage(subjects_dir=assets_dir, verbose=True))
         logger(f"fsaverage 模板已准备完成：{fs_dir}")
-    else:
-        logger(f"检测到本地 fsaverage 模板：{fs_dir}")
 
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
@@ -530,16 +536,36 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
             ch_type_map[ch] = "ecg"
         elif ch_upper in ("EMG1", "EMG2"):
             ch_type_map[ch] = "emg"
+        elif ch_upper == "STATUS":
+            ch_type_map[ch] = "stim"
 
     if ch_type_map:
         raw.set_channel_types(ch_type_map)
         logger(f"已设置通道类型：{ch_type_map}")
     else:
-        logger("未发现 ECG / EMG1 / EMG2 通道，跳过设置")
+        logger("未发现 ECG / EMG1 / EMG2 / STATUS 通道，跳过设置")
 
     # 5) 设置电极模板并预处理
-    logger("正在设置 standard_1020 电极模板...")
-    raw.set_montage("standard_1020", on_missing="ignore")
+    logger("正在设置电极模板...")
+    all_chan_names = [ch.upper() for ch in raw.ch_names]
+
+    if "A1" in all_chan_names and "B1" in all_chan_names:
+        biosemi_mapping = {
+            'A1': 'Fp1', 'A2': 'AF7', 'A3': 'AF3', 'A4': 'F1', 'A5': 'F3', 'A6': 'F5', 'A7': 'F7', 'A8': 'FT7',
+            'A9': 'FC5', 'A10': 'FC3', 'A11': 'FC1', 'A12': 'C1', 'A13': 'C3', 'A14': 'C5', 'A15': 'T7', 'A16': 'TP7',
+            'A17': 'CP5', 'A18': 'CP3', 'A19': 'CP1', 'A20': 'P1', 'A21': 'P3', 'A22': 'P5', 'A23': 'P7', 'A24': 'P9',
+            'A25': 'PO7', 'A26': 'PO3', 'A27': 'O1', 'A28': 'Iz', 'A29': 'Oz', 'A30': 'POz', 'A31': 'Pz', 'A32': 'CPz',
+            'B1': 'Fpz', 'B2': 'Fp2', 'B3': 'AF8', 'B4': 'AF4', 'B5': 'AFz', 'B6': 'Fz', 'B7': 'F2', 'B8': 'F4',
+            'B9': 'F6', 'B10': 'F8', 'B11': 'FT8', 'B12': 'FC6', 'B13': 'FC4', 'B14': 'FC2', 'B15': 'FCz', 'B16': 'Cz',
+            'B17': 'C2', 'B18': 'C4', 'B19': 'C6', 'B20': 'T8', 'B21': 'TP8', 'B22': 'CP6', 'B23': 'CP4', 'B24': 'CP2',
+            'B25': 'P2', 'B26': 'P4', 'B27': 'P6', 'B28': 'P8', 'B29': 'P10', 'B30': 'PO8', 'B31': 'PO4', 'B32': 'O2'
+        }
+        raw.rename_channels(biosemi_mapping)
+        raw.set_montage("biosemi64", on_missing="warn")
+        logger("已重命名 A/B 通道并应用 biosemi64 模板")
+    else:
+        raw.set_montage("standard_1020", on_missing="warn")
+        logger("已应用 standard_1020 模板")
 
     l_freq, h_freq, band_label = _get_band_range(analysis_band)
 

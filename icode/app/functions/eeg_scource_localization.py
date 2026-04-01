@@ -20,9 +20,11 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from scipy.signal import welch
 import matplotlib.ticker as ticker
+from ..common.path_utils import get_resource_path, get_runtime_path
 
 from ..resource.dark.mne_style_dark import MNE_STYLE_DARK
 from ..resource.light.mne_style_light import MNE_STYLE_LIGHT
+
 
 def _default_logger(msg: str):
     print(msg)
@@ -30,21 +32,22 @@ def _default_logger(msg: str):
 
 def _get_project_root():
     """返回当前项目根目录"""
-    return Path(__file__).resolve().parent.parent.parent
+    return get_resource_path()
 
 
 def _get_assets_dir():
     """返回 assets 文件夹路径，不存在则创建"""
-    assets_dir = _get_project_root() / "assets"
+    assets_dir = get_runtime_path("assets")
     assets_dir.mkdir(exist_ok=True)
     return assets_dir
 
 
 def _get_outputs_dir():
     """返回输出目录 outputs/EEG，不存在则自动创建"""
-    outputs_dir = _get_project_root() / "outputs" / "EEG"
+    outputs_dir = get_runtime_path("outputs", "EEG")
     outputs_dir.mkdir(parents=True, exist_ok=True)
     return outputs_dir
+
 
 def _prepare_fsaverage(logger):
     """
@@ -52,20 +55,25 @@ def _prepare_fsaverage(logger):
     - 优先使用 assets/fsaverage
     - 若缺失则自动下载到 assets 目录
     """
-    assets_dir = _get_assets_dir()
-    fs_dir = assets_dir / "fsaverage"
+    bundled_fs_dir = get_resource_path("assets", "fsaverage")
+    fs_dir = bundled_fs_dir
 
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
 
-    if not fs_dir.exists() or not src_path.exists() or not bem_path.exists():
+    if fs_dir.exists() and src_path.exists() and bem_path.exists():
+        logger(f"检测到内置 fsaverage 模板：{fs_dir}")
+    else:
+        assets_dir = _get_assets_dir()
+        fs_dir = assets_dir / "fsaverage"
+        src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
+        bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
+
         logger("未检测到完整的 fsaverage 模板，正在自动下载到 assets 文件夹...")
         logger(f"下载目录：{assets_dir}")
         fs_dir = fetch_fsaverage(subjects_dir=assets_dir, verbose=True)
         fs_dir = Path(fs_dir)
         logger(f"fsaverage 模板已准备完成：{fs_dir}")
-    else:
-        logger(f"检测到本地 fsaverage 模板：{fs_dir}")
 
     src_path = fs_dir / "bem" / "fsaverage-ico-5-src.fif"
     bem_path = fs_dir / "bem" / "fsaverage-5120-5120-5120-bem-sol.fif"
@@ -125,7 +133,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
 
     # ===== 创建帧动画 =====
     frames = []
-    for i in range(1, len(times) + 1,50):
+    for i in range(1, len(times) + 1, 50):
         frames.append(go.Frame(
             data=[
                 go.Scatter(
@@ -157,34 +165,34 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
 
     fig.update_layout(
         updatemenus=[{
-                'type': 'buttons',
-                'showactive': False,
-                'x': 0.5, 'y': 0.5, 'xanchor': 'center',
-                'bgcolor': 'rgba(255,255,255,0)',
-                'bordercolor': 'rgba(255,255,255,0)',
-                'borderwidth': 0,
-                'font': {
-                    'color': 'rgba(255,255,255,0)'
-                },
-                'buttons': [{
-            'label': 'Play',
-            'method': 'animate',
-            'args': [None, {
-                'frame': {'duration': 150, 'redraw': True},
-                'fromcurrent': True,
-                'transition': {'duration': 150, 'easing': 'linear'},
-                'mode': 'immediate'
+            'type': 'buttons',
+            'showactive': False,
+            'x': 0.5, 'y': 0.5, 'xanchor': 'center',
+            'bgcolor': 'rgba(255,255,255,0)',
+            'bordercolor': 'rgba(255,255,255,0)',
+            'borderwidth': 0,
+            'font': {
+                'color': 'rgba(255,255,255,0)'
+            },
+            'buttons': [{
+                'label': 'Play',
+                'method': 'animate',
+                'args': [None, {
+                    'frame': {'duration': 150, 'redraw': True},
+                    'fromcurrent': True,
+                    'transition': {'duration': 150, 'easing': 'linear'},
+                    'mode': 'immediate'
+                }]
+            }, {
+                'label': 'Pause',
+                'method': 'animate',
+                'args': [[None], {
+                    'frame': {'duration': 0, 'redraw': False},
+                    'mode': 'immediate',
+                    'transition': {'duration': 0}
+                }]
             }]
-        }, {
-            'label': 'Pause',
-            'method': 'animate',
-            'args': [[None], {
-                'frame': {'duration': 0, 'redraw': False},
-                'mode': 'immediate',
-                'transition': {'duration': 0}
-            }]
-        }]
-            }],
+        }],
         title=dict(
             text=f'源活动时间序列 ({band_label})',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
@@ -260,7 +268,7 @@ def _plot_source_intensity_hist_plotly(stc, output_dir, bdf_stem, html_injector)
              color='#000000',
              fontsize=9,
              verticalalignment='top',
-             horizontalalignment='center',)
+             horizontalalignment='center', )
 
     ax2.set_title("激活强度分布统计", fontname='SimHei', fontsize=12)
     ax2.set_xlabel("激活强度", fontname='SimHei', fontsize=10)
@@ -275,6 +283,7 @@ def _plot_source_intensity_hist_plotly(stc, output_dir, bdf_stem, html_injector)
     fig2.savefig(output_dir / "source_intensity_hist.png", dpi=300)
     hist_path = os.path.join(output_dir, f"source_intensity_hist.png")
     return hist_path
+
 
 def _plot_region_activation_bar_plotly(stc, subjects_dir, output_dir, bdf_stem, html_injector):
     """绘制脑区激活排名图（Plotly 版本，静态）"""
@@ -400,7 +409,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
 
     # ===== 创建帧动画 =====
     frames = []
-    for i in range(1, len(freqs) + 1,2):
+    for i in range(1, len(freqs) + 1, 2):
         frames.append(go.Frame(
             data=[
                 go.Scatter(
@@ -432,34 +441,34 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
 
     fig.update_layout(
         updatemenus=[{
-                'type': 'buttons',
-                'showactive': False,
-                'x': 0.5, 'y': 0.5, 'xanchor': 'center',
-                'bgcolor': 'rgba(255,255,255,0)',
-                'bordercolor': 'rgba(255,255,255,0)',
-                'borderwidth': 0,
-                'font': {
-                    'color': 'rgba(255,255,255,0)'
-                },
-                'buttons': [{
-            'label': 'Play',
-            'method': 'animate',
-            'args': [None, {
-                'frame': {'duration': 150, 'redraw': True},
-                'fromcurrent': True,
-                'transition': {'duration': 150, 'easing': 'linear'},
-                'mode': 'immediate'
+            'type': 'buttons',
+            'showactive': False,
+            'x': 0.5, 'y': 0.5, 'xanchor': 'center',
+            'bgcolor': 'rgba(255,255,255,0)',
+            'bordercolor': 'rgba(255,255,255,0)',
+            'borderwidth': 0,
+            'font': {
+                'color': 'rgba(255,255,255,0)'
+            },
+            'buttons': [{
+                'label': 'Play',
+                'method': 'animate',
+                'args': [None, {
+                    'frame': {'duration': 150, 'redraw': True},
+                    'fromcurrent': True,
+                    'transition': {'duration': 150, 'easing': 'linear'},
+                    'mode': 'immediate'
+                }]
+            }, {
+                'label': 'Pause',
+                'method': 'animate',
+                'args': [[None], {
+                    'frame': {'duration': 0, 'redraw': False},
+                    'mode': 'immediate',
+                    'transition': {'duration': 0}
+                }]
             }]
-        }, {
-            'label': 'Pause',
-            'method': 'animate',
-            'args': [[None], {
-                'frame': {'duration': 0, 'redraw': False},
-                'mode': 'immediate',
-                'transition': {'duration': 0}
-            }]
-        }]
-            }],
+        }],
         title=dict(
             text='源活动相对功率谱 (归一化 dB)',
             font=dict(family="Segoe UI, Arial", size=14, color="#000000"),
@@ -514,14 +523,14 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
     print(f"源活动相对功率谱图已保存：{psd_path}")
     return psd_path
 
-def compute_source_localization(
-    bdf_path,
-    logger=None,
-    duration_sec=10,
-    analysis_band="full",
-    plot_theme="auto",
-):
 
+def compute_source_localization(
+        bdf_path,
+        logger=None,
+        duration_sec=10,
+        analysis_band="full",
+        plot_theme="auto",
+):
     if logger is None:
         logger = _default_logger
 
@@ -577,23 +586,55 @@ def compute_source_localization(
 
     # 5. 非 EEG 通道处理
     logger("正在处理非 EEG 通道...")
+    logger(raw.ch_names)
     ch_type_map = {}
+    channels_to_drop = []
+
     for ch in raw.ch_names:
         ch_upper = ch.upper()
         if ch_upper == "ECG":
             ch_type_map[ch] = "ecg"
         elif ch_upper in ["EMG1", "EMG2"]:
             ch_type_map[ch] = "emg"
+        elif ch_upper == "STATUS":
+            # 将 Status 设为 stim 通道。如果确定不再需要，也可以加入 channels_to_drop
+            ch_type_map[ch] = "stim"
 
     if ch_type_map:
         raw.set_channel_types(ch_type_map)
         logger(f"已设置非 EEG 通道类型：{ch_type_map}")
     else:
-        logger("未发现 ECG / EMG1 / EMG2，跳过非 EEG 通道设置。")
+        logger("未发现 ECG / EMG1 / EMG2，跳过相关设置。")
+
+    if channels_to_drop:
+        raw.drop_channels(channels_to_drop)
 
     # 6. 设置标准电极模板
-    logger("正在设置 standard_1020 电极模板...")
-    raw.set_montage("standard_1020", on_missing="ignore")
+    logger("正在设置电极模板...")
+    all_chan_names = [ch.upper() for ch in raw.ch_names]
+
+    if "A1" in all_chan_names and "B1" in all_chan_names:
+        # 核心修复：定义 BioSemi 64 (A/B) 到 10-20 系统的标准映射字典
+        biosemi_mapping = {
+            'A1': 'Fp1', 'A2': 'AF7', 'A3': 'AF3', 'A4': 'F1', 'A5': 'F3', 'A6': 'F5', 'A7': 'F7', 'A8': 'FT7',
+            'A9': 'FC5', 'A10': 'FC3', 'A11': 'FC1', 'A12': 'C1', 'A13': 'C3', 'A14': 'C5', 'A15': 'T7', 'A16': 'TP7',
+            'A17': 'CP5', 'A18': 'CP3', 'A19': 'CP1', 'A20': 'P1', 'A21': 'P3', 'A22': 'P5', 'A23': 'P7', 'A24': 'P9',
+            'A25': 'PO7', 'A26': 'PO3', 'A27': 'O1', 'A28': 'Iz', 'A29': 'Oz', 'A30': 'POz', 'A31': 'Pz', 'A32': 'CPz',
+            'B1': 'Fpz', 'B2': 'Fp2', 'B3': 'AF8', 'B4': 'AF4', 'B5': 'AFz', 'B6': 'Fz', 'B7': 'F2', 'B8': 'F4',
+            'B9': 'F6', 'B10': 'F8', 'B11': 'FT8', 'B12': 'FC6', 'B13': 'FC4', 'B14': 'FC2', 'B15': 'FCz', 'B16': 'Cz',
+            'B17': 'C2', 'B18': 'C4', 'B19': 'C6', 'B20': 'T8', 'B21': 'TP8', 'B22': 'CP6', 'B23': 'CP4', 'B24': 'CP2',
+            'B25': 'P2', 'B26': 'P4', 'B27': 'P6', 'B28': 'P8', 'B29': 'P10', 'B30': 'PO8', 'B31': 'PO4', 'B32': 'O2'
+        }
+
+        # 将原始通道名称重命名为标准名称
+        raw.rename_channels(biosemi_mapping)
+
+        # 应用 Montage，建议将 ignore 改为 warn，这样如果以后再缺电极位置，终端会给你亮黄字警告而不是静默跳过
+        raw.set_montage("biosemi64", on_missing="warn")
+        logger("已重命名 A/B 通道并应用 biosemi64 模板。")
+    else:
+        raw.set_montage("standard_1020", on_missing="warn")
+        logger("已应用 standard_1020 模板。")
 
     # 7. 预处理
     l_freq, h_freq, band_label = _get_band_range(analysis_band)
@@ -760,13 +801,12 @@ def show_source_localization_window(result, logger=None):
 
 
 def run_source_localization(
-    bdf_path,
-    logger=None,
-    duration_sec=10,
-    analysis_band="full",
-    plot_theme="auto",
+        bdf_path,
+        logger=None,
+        duration_sec=10,
+        analysis_band="full",
+        plot_theme="auto",
 ):
-
     result = compute_source_localization(
         bdf_path=bdf_path,
         logger=logger,

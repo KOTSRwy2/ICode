@@ -20,7 +20,7 @@ from ..common.style_sheet import StyleSheet
 
 class EEGSourcePage(BaseFunctionPage):
     def __init__(self, parent=None):
-        super().__init__("EEG 源定位可视化", "读取 BDF 文件执行 3D 大脑源定位可视化，并在主界面展示全球功率时间曲线图、源活动功率谱密度图、激活强度分布直方图和脑区激活 Top15 柱状图共 4 张源活动统计分析图表", MODULE_EEG_SOURCE, parent)
+        super().__init__("EEG 源定位可视化", "读取 BDF 文件执行 3D 大脑源定位可视化，并在主界面展示全球功率时间曲线图、源活动功率谱密度图、激活强度分布直方图和脑区激活 Top15 柱状图共 4 张源活动统计分析图表。", MODULE_EEG_SOURCE, parent)
         self.bdf_path = ""
         self._init_ui()
 

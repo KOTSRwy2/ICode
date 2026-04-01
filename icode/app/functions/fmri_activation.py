@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import json
 from .PlotlyHTMLInjector import PlotlyHTMLInjector
 from pathlib import Path
+from ..common.path_utils import get_resource_path, get_runtime_path
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -18,17 +19,17 @@ plt.switch_backend('Agg')
 
 
 def _get_project_root():
-    return Path(__file__).resolve().parent.parent.parent
+    return get_resource_path()
 
 
 def _get_fmri_output_dir():
-    output_dir = os.path.join(_get_project_root(), "outputs", "fMRI")
+    output_dir = str(get_runtime_path("outputs", "fMRI"))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
 
 def _get_mni152_template_path():
-    return os.path.join(_get_project_root(), "templates", "mni152", "mni_icbm152_t1_tal_nlin_sym_09a.nii")
+    return str(get_resource_path("templates", "mni152", "mni_icbm152_t1_tal_nlin_sym_09a.nii"))
 
 
 class FMRIActivationThread(QThread):
