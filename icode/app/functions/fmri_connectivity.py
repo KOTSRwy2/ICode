@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import pandas as pd
+from ..common.path_utils import get_resource_path, get_runtime_path
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -19,18 +20,18 @@ plt.switch_backend('Agg')
 
 
 def _get_project_root():
-    return Path(__file__).resolve().parent.parent.parent
+    return get_resource_path()
 
 
 def _get_fmri_output_dir():
-    output_dir = os.path.join(_get_project_root(), "outputs", "fMRI")
+    output_dir = str(get_runtime_path("outputs", "fMRI"))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
 
 def _get_aal_template_paths():
-    aal_nii = os.path.join(_get_project_root(), "templates", "aal", "aal.nii")
-    aal_txt = os.path.join(_get_project_root(), "templates", "aal", "aal.nii.txt")
+    aal_nii = str(get_resource_path("templates", "aal", "aal.nii"))
+    aal_txt = str(get_resource_path("templates", "aal", "aal.nii.txt"))
     return aal_nii, aal_txt
 
 
