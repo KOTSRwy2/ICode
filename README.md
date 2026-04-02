@@ -2,6 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.00-blue)
 ![Platform|116](https://img.shields.io/badge/platform-Windows-green)
+
 `快速功能导航`： [EEG 源定位可视化](#eeg-源定位可视化) | [EEG 功能连接分析](#eeg-功能连接分析) | [fMRI 脑区激活定位](#fmri-脑区激活定位) | [fMRI 功能连接分析](#fmri-功能连接分析)
 
 ---
@@ -42,7 +43,7 @@
 ## 🚀 快速开始
 ### 1. 解压
 将压缩包整体解压，确保main.exe与依赖文件_internal放在同一文件目录下
-![[Pasted image 20260402192829.png]]
+<img width="988" height="135" alt="file" src="https://github.com/user-attachments/assets/48962831-4ec2-40bd-9093-d470e2a5a063" />
 ### 2. 系统要求
 为确保图表渲染流畅，建议配置如下：
 - **操作系统**: Windows 10/11 (64 位)
@@ -53,7 +54,7 @@
 
 ### 3. 启动项目
 双击 main.exe 后等待程序运行，弹出软件界面则项目运行成功
-![[Pasted image 20260402202021.png]]
+<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/6cfa3b5f-68f5-449b-8d62-f1447a397b3c" />
 ## ✨ 核心功能 
 
 ### **EEG 源定位可视化**
@@ -61,15 +62,15 @@
 然后在输入栏填入或通过右方浏览文件按钮选中.bdf EEG文件以加载数据
 下方有两栏可选分析参数，能够选择EEG截取的时长以及分析的EEG频段
 调整好参数后点击下方执行EEG源定位即可开始分析
-![[Pasted image 20260402221532.png]]
+<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/7729d33f-e1c4-490e-aa68-f50ae59d1a28" />
 分析完后弹出交互式 EEG 源定位分析界面
 用户可通过鼠标进行旋转、缩放等交互操作，并支持时间轴动画播放、调整播放速度、，可灵活切换双侧脑、单侧脑等多种观察视角以精确定位激活区域。
-![[Pasted image 20260402223602.png|634]]
+<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/986c6d35-e5e5-4f59-85c0-29edc94eddea" />
 ### **EEG 功能连接分析**
 
 ### **fMRI 脑区激活定位**
 > [!warning]
-> Lorem ipsum dolor sit amet
+> 该推荐要使用T1结构影像进行分析，以获得最佳分析效果
 
 ### **fMRI 功能连接分析**
 
