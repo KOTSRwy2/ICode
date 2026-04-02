@@ -2,7 +2,6 @@ import os
 import re
 import numpy as np
 import nibabel as nib
-from PIL.FontFile import WIDTH
 from nilearn import plotting, image, masking
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -12,7 +11,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import pandas as pd
-from ..common.path_utils import get_resource_path, get_runtime_path
 
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -21,18 +19,18 @@ plt.switch_backend('Agg')
 
 
 def _get_project_root():
-    return get_resource_path()
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def _get_fmri_output_dir():
-    output_dir = str(get_runtime_path("outputs", "fMRI"))
+    output_dir = os.path.join(_get_project_root(), "outputs", "fMRI")
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
 
 def _get_aal_template_paths():
-    aal_nii = str(get_resource_path("templates", "aal", "aal.nii"))
-    aal_txt = str(get_resource_path("templates", "aal", "aal.nii.txt"))
+    aal_nii = os.path.join(_get_project_root(), "templates", "aal", "aal.nii")
+    aal_txt = os.path.join(_get_project_root(), "templates", "aal", "aal.nii.txt")
     return aal_nii, aal_txt
 
 
@@ -42,7 +40,7 @@ class FMRIConnectivityThread(QThread):
 
     def __init__(self, fmri_nifti_path, tr=2.0, mask_path=None,
                  window_strategy="time_based",
-                 window_param=60,
+                 window_param=30,
                  step_strategy="fixed",
                  step_param=10):
         super().__init__()
@@ -50,6 +48,8 @@ class FMRIConnectivityThread(QThread):
         self.tr = tr
         self.mask_path = mask_path
         self.output_dir = _get_fmri_output_dir()
+
+        self.drop_first_timepoints = 10
 
         # 自适应窗口/步长参数
         self.window_strategy = window_strategy
@@ -79,17 +79,47 @@ class FMRIConnectivityThread(QThread):
         self.log_pyqtSignal.emit("读取fMRI NIfTI文件...")
         fmri_img = nib.load(self.fmri_nifti_path)
 
+        # Reorient 空间对齐
+        self.log_pyqtSignal.emit("执行Reorient空间对齐（RAS+方向）...")
+
+        self.log_pyqtSignal.emit(f"剔除前{self.drop_first_timepoints}个时间点...")
+        fmri_data = fmri_img.get_fdata()
+        original_timepoints = fmri_data.shape[-1]
+
+        # 校验时间点数量
+        if original_timepoints <= self.drop_first_timepoints:
+            raise ValueError(f"时间点数量不足！原始{original_timepoints}个，需剔除{self.drop_first_timepoints}个")
+
+        # 剔除前N个时间点
+        fmri_data = fmri_data[..., self.drop_first_timepoints:]
+        remaining_timepoints = fmri_data.shape[-1]
+        self.log_pyqtSignal.emit(f"时间点处理完成：原始{original_timepoints}个 → 剩余{remaining_timepoints}个")
+
+        # 重新构建Nibabel对象
+        fmri_img = nib.Nifti1Image(fmri_data, fmri_img.affine, fmri_img.header)
+        # 更新header中的时间维度信息
+        fmri_img.header['dim'][4] = remaining_timepoints
+        fmri_img.header['pixdim'][4] = self.tr
+
+        # 掩码处理
         if self.mask_path and os.path.exists(self.mask_path):
             mask_img = nib.load(self.mask_path)
-            self.log_pyqtSignal.emit(f"使用自定义脑掩码：{self.mask_path}")
-        else:
-            self.log_pyqtSignal.emit("生成MNI152标准脑掩码...")
-            mask_img = masking.compute_brain_mask(fmri_img)
 
-        self.log_pyqtSignal.emit("执行fMRI预处理（掩码+标准化）...")
+            self.log_pyqtSignal.emit(f"使用自定义脑掩码（已Reorient）：{self.mask_path}")
+        else:
+            self.log_pyqtSignal.emit("生成MNI152标准脑掩码（适配DPARSF）...")
+            mask_img = masking.compute_brain_mask(
+                fmri_img,
+                mask_type='whole-brain',
+                connected=True,
+                opening=False
+            )
+
+        self.log_pyqtSignal.emit("执行fMRI预处理（掩码+标准化，适配DPARSF）...")
         fmri_masked = masking.apply_mask(fmri_img, mask_img)
         fmri_masked = (fmri_masked - fmri_masked.mean(axis=0)) / (fmri_masked.std(axis=0) + 1e-8)
         fmri_preprocessed = masking.unmask(fmri_masked, mask_img)
+
         return fmri_preprocessed, mask_img
 
     def _adapt_sliding_window_params(self, n_timepoints):
@@ -217,7 +247,7 @@ class FMRIConnectivityThread(QThread):
 
         fig.update_layout(
             title=dict(
-                text=f'<b>正/负连接分布图</b><br><span style="font-size:12px; color:#95A5A6;">{base_name.upper()} 分析</span>',
+                text=f'<b>正/负连接比例饼图</b><br><span style="font-size:12px; color:#95A5A6;">{base_name.upper()} 分析</span>',
                 font=dict(family="Arial, Helvetica, sans-serif", size=18, color="#2C3E50"),
                 x=0.5,
                 y=0.95
@@ -349,9 +379,9 @@ class FMRIConnectivityThread(QThread):
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=(
-                '平均连接强度',
-                '正负连接比例',
-                '连接异质性',
+                '平均连接强度图',
+                '正负连接比例图',
+                '连接异质性图',
                 '窗口覆盖示意图'
             ),
             specs=[
@@ -389,7 +419,7 @@ class FMRIConnectivityThread(QThread):
             end = end_idx * tr
             color = '#4ECDC4' if i % 2 == 0 else '#FF6B6B'
 
-            # 按颜色分类显示图例，而不是按第一个窗口
+            # 按颜色分类显示图例
             if color == '#4ECDC4' and not cyan_legend_shown:
                 show_legend = True
                 cyan_legend_shown = True
