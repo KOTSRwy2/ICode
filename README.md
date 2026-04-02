@@ -25,7 +25,7 @@
 ### **fMRI 功能连接分析数据集（ABIDE I）**
 
 本项目 fMRI 功能连接模块采用国际公开开源数据集 ABIDE I（Autism Brain Imaging Data Exchange I） 进行测试与验证。
-- 官方开源地址：[ABIDE I](https://fcon_1000.projects.nitrc.org/indi/abide/abide_I.html](https://fcon_1000.projects.nitrc.org/indi/abide/abide_I.html)
+- 官方开源地址：[ABIDE I](https://fcon_1000.projects.nitrc.org/indi/abide/abide_I.html)
 - 本项目使用数据路径（原始开源数据集内路径）：
 	ABIDE/ABIDE I/Yale/{被试编号}/session_1/rest_1/rest.nii.gz
 - 数据格式：NIfTI（.nii.gz）
