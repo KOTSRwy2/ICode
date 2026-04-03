@@ -65,12 +65,10 @@
 <img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/7729d33f-e1c4-490e-aa68-f50ae59d1a28" />
 分析完后弹出交互式 EEG 源定位分析界面
 用户可通过鼠标进行旋转、缩放等交互操作，并支持时间轴动画播放、调整播放速度、，可灵活切换双侧脑、单侧脑等多种观察视角以精确定位激活区域。
-<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/986c6d35-e5e5-4f59-85c0-29edc94eddea" />
+![eeg_source_localization_main](https://github.com/user-attachments/assets/c4198724-8438-4056-8dfc-55a8b92ea7c7)
 ### **EEG 功能连接分析**
 
 ### **fMRI 脑区激活定位**
-> [!warning]
-> 该推荐要使用T1结构影像进行分析，以获得最佳分析效果
 
 ### **fMRI 功能连接分析**
 
