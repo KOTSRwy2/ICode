@@ -5,6 +5,9 @@
 
 `快速功能导航`： [EEG 源定位可视化](#eeg-源定位可视化) | [EEG 功能连接分析](#eeg-功能连接分析) | [fMRI 脑区激活定位](#fmri-脑区激活定位) | [fMRI 功能连接分析](#fmri-功能连接分析)
 
+> [!tip]
+> 本文档包含多个演示动图，请耐心等待动图加载完成
+
 ---
 
 > **NeuroScope** 是一个面向教学展示、科研入门和竞赛答辩场景的 EEG/fMRI 脑可视化平台。系统强调统一界面、清晰流程和直观结果，无需编程基础即可实现多模态脑数据的自动化分析与交互式展示。本文档是面向用户所编辑的快速入门使用说明。
@@ -66,12 +69,17 @@
 分析完后弹出交互式 EEG 源定位分析界面
 用户可通过鼠标进行旋转、缩放等交互操作，并支持时间轴动画播放、调整播放速度、，可灵活切换双侧脑、单侧脑等多种观察视角以精确定位激活区域。
 ![eeg_source_localization_main](https://github.com/user-attachments/assets/c4198724-8438-4056-8dfc-55a8b92ea7c7)
+
 ### **EEG 功能连接分析**
 
 ### **fMRI 脑区激活定位**
 
 ### **fMRI 功能连接分析**
 
+## ⚙️ 系统配置
+### 接入plotly可交互图表
+本项目大多数图表使用的是plotly可交互图表，基于html渲染，支持悬浮显示数据、框选缩放、自动调整大小、保存为html可交互图表与png静态图等基础操作。此外本系统对于部分统计图表增加了动画支持，用户可以播放、暂停与重载动画，以方便更好地观察数据趋势与局部细节。
+![animate_demo](https://github.com/user-attachments/assets/116d2611-fa4f-4072-8923-699b149cb302)
 
 ## ❓ 常见问题 (FAQ)
 
@@ -83,4 +91,4 @@ A: 当前 Release 版本仅支持 Windows。源码支持跨平台编译，详见
 
 
 ---
-*© 2025 NeuroScope Team. All Rights Reserved.*
+*© 2026 NeuroScope Team. All Rights Reserved.*
