@@ -631,7 +631,7 @@ class FMRIConnectivityThread(QThread):
         })
 
         # 3. 绘制典型窗口的连接矩阵热力图
-        self.log_pyqtSignal.emit("生成连接矩阵热力图动画...")
+        self.log_pyqtSignal.emit("生成连接矩阵热力图...")
 
         n_show = min(5, n_windows)
         key_window_indices = np.linspace(0, n_windows - 1, n_show, dtype=int)

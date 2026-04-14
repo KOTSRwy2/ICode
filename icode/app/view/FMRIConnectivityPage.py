@@ -141,7 +141,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
 本图选取全时间序列中具有代表性的关键时间窗口，分别展示各时段内的功能连接矩阵，用于直观呈现脑网络的动态重组过程。
 
 如何理解：
-- 每一个子图：对应一个独立的时间窗口（如窗口0对应0-60s, 窗口10 对应196-256s）
+- 每一个子图：对应一个独立的时间窗口
 - 时间标注：显示每个窗口对应的时间范围，便于对应分析
 - 颜色深浅：代表该时间点脑区间连接强度的高低
 - 对比观察：通过多张子图的横向对比，可观察连接模式的时空演变
@@ -152,7 +152,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
 3. 验证动态功能连接分析的稳定性，观察不同时段网络结构的差异
 """,
                 chart_name="多时间窗口功能连接热力图",
-                image_url=r"app\resource\images\heat_map_windows.jpg",
+                image_url=os.path.join(self.base_dir, "app/resource/images", "heat_map_windows.jpg"),
             )
 
             card3.web_view.setFixedHeight(550)

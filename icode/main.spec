@@ -2,6 +2,8 @@
 import os
 from PyInstaller.utils.hooks import collect_all
 
+icon_path = os.path.abspath(os.path.join('app', 'resource', 'images', 'logo.ico'))
+
 
 def collect_local_data(src_dir, dest_dir):
     """Collect all files under src_dir into the given destination folder."""
@@ -64,6 +66,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
+    icon=icon_path,
     codesign_identity=None,
     entitlements_file=None,
 )

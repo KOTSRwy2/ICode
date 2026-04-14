@@ -7,6 +7,7 @@ main.py
 
 import sys
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import (
     FluentWindow,
@@ -29,6 +30,17 @@ from app.view.LogReportPage import LogReportPage
 from app.view.SettingsPage import SettingsPage
 from app.common import resource
 from app.view.CustomWebEngineView import cleanup_all_profiles
+from app.common.path_utils import get_resource_path
+
+
+def _set_windows_app_user_model_id():
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ICode.EEGFMRIFluentApp")
+    except Exception:
+        pass
 
 class EEGFMRIFluentApp(FluentWindow):
     def __init__(self):
@@ -36,7 +48,7 @@ class EEGFMRIFluentApp(FluentWindow):
         self.themeListener = SystemThemeListener(self)
         # 1. 优先基础设置与初始化
         self._init_window_spec()
-        
+
         # 2. 依次实例化组件页面
         self.page_eeg_src = EEGSourcePage(self)
         self.page_eeg_conn = EEGConnectivityPage(self)
@@ -59,12 +71,12 @@ class EEGFMRIFluentApp(FluentWindow):
         self.themeListener.start()
 
         self._on_theme_changed(cfg.theme)
-        print(cfg.themeColor)
         StyleSheet.MAIN.apply(self)
 
     def _init_window_spec(self):
         self.resize(1200, 780)
         self.setWindowTitle("EEG/fMRI 模板脑可视化工具")
+        self.setWindowIcon(QIcon(str(get_resource_path("app", "resource", "images", "logo.ico"))))
         setThemeColor(cfg.themeColor.value)
 
         self.setMicaEffectEnabled(True)
@@ -114,6 +126,8 @@ class EEGFMRIFluentApp(FluentWindow):
             QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
 if __name__ == "__main__":
+    _set_windows_app_user_model_id()
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
@@ -121,6 +135,7 @@ if __name__ == "__main__":
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(str(get_resource_path("app", "resource", "images", "logo.ico"))))
 
     app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
 

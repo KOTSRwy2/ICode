@@ -7,7 +7,7 @@
         ]
     },
     "MainWindow": {
-        "ThemeColor": "#ff2848ff",
-        "ThemeMode": "Dark"
+        "ThemeColor": "#ffff3c3f",
+        "ThemeMode": "Light"
     }
 }
