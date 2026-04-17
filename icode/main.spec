@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+#Qwen3.5-Plus使用情况说明：2026年 4月2日 19：00-19：30 参考AI提供的解决方案，最终使用了spec配置文件，根据项目所用资源进行配置
 import os
 from PyInstaller.utils.hooks import collect_all
 

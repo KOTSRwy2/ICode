@@ -110,6 +110,9 @@ class InteractiveChartCard(CardWidget):
 
         StyleSheet.INTERACTIVE_CHART_CARD.apply(self)
 
+    #Qwen3.5-Plus使用情况说明：2026年3月17日 17：00-17：30 使用AI按我的需求实现基础的页面布局框架，不含业务逻辑部分；
+    #对AI的框架进行修改样式和修复布局异常的问题，然后创建自定义的CustomWebEngine类来确保plotly交互逻辑正常
+    #在框架基础上还增加了动画页面部分，支持plotly动态图表的展示
     def _init_ui(self):
         # 整体竖向布局
         self.v_layout = QVBoxLayout(self)
@@ -167,7 +170,6 @@ class InteractiveChartCard(CardWidget):
         self.header_layout.addWidget(self.btn_export, 0, Qt.AlignTop)
         self.header_layout.addWidget(self.btn_expand, 0, Qt.AlignTop)
 
-        # === 2. Web 渲染区 (Content) ===
         if self.is_html:
             self.web_view = CustomWebEngineView(self)
             self.web_view.setMinimumHeight(400)
