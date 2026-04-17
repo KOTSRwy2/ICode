@@ -1,0 +1,201 @@
+# -*- coding: utf-8 -*-
+import os
+import ast
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QMainWindow
+)
+
+from qfluentwidgets import (
+    ScrollArea,  Theme, InfoBar, InfoBarPosition,
+    IndeterminateProgressBar,
+    SubtitleLabel, BodyLabel
+)
+from .CustomWebEngineView import CustomWebEngineView
+from ..common.style_sheet import StyleSheet
+from pathlib import Path
+from ..common.path_utils import get_project_root
+
+class VisualizationWebWindow(QMainWindow):
+    """【优化版】仅在内容完全加载后才显示窗口，避免空白感"""
+    ready_sig = pyqtSignal() # 新增信号：页面完全渲染稳定后发射
+    closed_sig = pyqtSignal() # 新增信号：窗口被关闭时发射
+
+    def __init__(self, html_path: str, title: str = "可视化结果", parent=None, status_callback=None):
+        super().__init__(parent)
+        self._html_path = html_path
+        self._status_callback = status_callback
+        self.setWindowTitle(title)
+        self.resize(1280, 860)
+
+        # 1. 立即初始化 WebEngine 但不显示窗口
+        self.central_widget = QWidget()
+        self.layout = QVBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.web = CustomWebEngineView(self, is_isolated=True) # 使用独立进程模式，确保互不干扰
+        self.layout.addWidget(self.web)
+        self.setCentralWidget(self.central_widget)
+
+        # 2. 监听加载完成信号，完成后再显示窗口
+        self.web.loadFinished.connect(self._on_load_finished)
+        
+        # 3. 开始加载
+        if self._status_callback:
+            self._status_callback("正在加载交互式分析报告...")
+            
+        abs_path = os.path.abspath(self._html_path)
+        self.web.load(QUrl.fromLocalFile(abs_path))
+
+    def _on_load_finished(self, success):
+        """加载完成后弹出窗口"""
+        if success:
+            # 【关键优化】额外等待 300ms，让 Plotly 内部 JS 完成初次布局绘制
+            if self._status_callback:
+                self._status_callback("报告渲染完成，正在启动交互窗口...")
+            QTimer.singleShot(300, self._show_and_focus)
+
+    def _show_and_focus(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        # 强制处理一次事件，确保交互即时响应
+        QApplication.processEvents()
+        if self._status_callback:
+            self._status_callback("报告已就绪。")
+        self.ready_sig.emit() # 通知外部：已经准备好了
+
+    def closeEvent(self, event):
+        self.closed_sig.emit()
+        super().closeEvent(event)
+
+# ===================== BaseFunctionPage 完全保持原样，不用动 =====================
+# 基础功能页面模板
+class BaseFunctionPage(ScrollArea):
+    """提取四大功能页的共用逻辑：标题、文件选择、运行按钮、以及置底的进度条"""
+    def __init__(self, title: str, description: str, module_name: str, parent=None):
+        super().__init__(parent=parent)
+        self.module_name = module_name
+        self.setObjectName(title.replace(" ", "_"))
+
+        self.setWidgetResizable(True)
+        self.setFrameShape(self.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.viewport().setObjectName("FunctionPageViewport")
+
+        self.view = QWidget(self)
+        self.view.setObjectName("FunctionPageView")
+
+        # 主布局
+        self.main_layout = QVBoxLayout(self.view)
+        self.main_layout.setContentsMargins(36, 36, 36, 36)
+        self.main_layout.setSpacing(24)
+
+        # 建立标题区
+        self.title_label = SubtitleLabel(title, self.view)
+        self.desc_label = BodyLabel(description, self.view)
+        self.desc_label.setWordWrap(True)
+        # 使用 QFluentWidgets 默认配色，确保在深浅主题下均有良好的可读性
+
+        self.main_layout.addWidget(self.title_label)
+        self.main_layout.addWidget(self.desc_label)
+
+        # 内容填充区
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setSpacing(16)
+        self.main_layout.addLayout(self.content_layout)
+
+        self.main_layout.addStretch(1)
+
+        # 底部状态展示区
+        self._build_status_bar()
+        self.main_layout.addWidget(self.status_container)
+
+        self.setWidget(self.view)
+        self.worker = None # 后台工作线程引用，防止被回收
+        self.view.setObjectName('view')
+        self.base_dir = get_project_root()
+
+    def _build_status_bar(self):
+        # 进度状态外层布局
+        self.status_container = QWidget(self.view)
+        self.status_layout = QVBoxLayout(self.status_container)
+        self.status_layout.setContentsMargins(0, 0, 0, 0)
+        self.status_layout.setSpacing(6)
+
+        # 状态小字，靠右对齐
+        self.status_label = BodyLabel("当前状态...", self.status_container)
+        self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.status_label.setStyleSheet("font-size: 13px;")
+
+        # 左右循环播放的进度条
+        self.progress_bar = IndeterminateProgressBar(self.status_container,0.4)
+        self.status_layout.addWidget(self.status_label)
+        self.status_layout.addWidget(self.progress_bar)
+
+        # 默认隐藏整个组件，运行时才展现
+        self.status_container.setVisible(False)
+
+    def set_running_state(self, is_running: bool, msg: str = "运行中..."):
+        """统一切换底部状态：运行时显示并开启控件锁，否则关闭条幅"""
+        self.status_container.setVisible(is_running)
+        self.status_label.setText(msg)
+        self.view.setEnabled(not is_running) # 运行期间锁定页面除状态栏外的操作
+
+    def check_file_selected(self, file_path: str, ext_tuple: tuple, err_msg: str):
+        if not file_path:
+            InfoBar.warning("提示", "请选择需要处理的文件。", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        if not os.path.exists(file_path):
+            InfoBar.error("错误", "所选文件不存在。", parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        if not file_path.endswith(ext_tuple):
+            InfoBar.error("错误", err_msg, parent=self, position=InfoBarPosition.TOP_RIGHT)
+            return False
+        return True
+
+    def show_success_dialog(self, title: str, content: str):
+        InfoBar.success(
+            title=title,
+            content=content,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.BOTTOM_RIGHT,
+            duration=3000,
+            parent=self.window()
+        )
+
+    def show_error_dialog(self, title: str, content: str):
+        InfoBar.error(
+            title=title,
+            content=content,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.BOTTOM_RIGHT,
+            duration=-1,
+            parent=self.window()
+        )
+
+    def show_html_in_subwindow(self, html_path: str, title: str, status_callback=None):
+        """仅显示逻辑：将 HTML 在 QWebEngineView 子窗口中打开"""
+        if not html_path or not os.path.exists(html_path):
+            return None
+        self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window(), status_callback=status_callback)
+        # self._viz_window.show()  # 移除立即显示，改为由窗口内部加载完成后再显式弹出
+        return self._viz_window
+
+    def _on_theme_changed(self, theme: Theme):
+        StyleSheet.MAIN.apply(self)
+
+        # 刷新窗口
+        self.update()
+        self.repaint()
+        QApplication.processEvents()
+
+    def _clear_previous_cards(self):
+        """清空之前生成的卡片容器（防止多次运行后无限往下叠加）"""
+        if hasattr(self, 'cards_container') and self.cards_container is not None:
+            self.content_layout.removeWidget(self.cards_container)
+            self.cards_container.deleteLater()
+            self.cards_container = None

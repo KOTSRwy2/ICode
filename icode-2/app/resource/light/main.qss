@@ -1,0 +1,78 @@
+QMainWindow,
+FluentWindow {
+    background-color: rgb(243, 243, 243);
+}
+
+TitleBar {
+    background-color: rgb(243, 243, 243);
+}
+
+TitleBar #titleLabel {
+    color: black;
+}
+
+NavigationInterface,
+#navigationView {
+    background-color: rgb(249, 249, 249);
+    border-right: 1px solid rgb(229, 229, 229);
+}
+
+/* 页面容器 - 使用透明背景，让 FluentWindow 的云母/亚克力效果透出 */
+#view {
+    background-color: transparent;
+}
+
+#viewport{background: transparent; border: none;}
+
+/* ScrollArea 视口 - 不覆盖默认样式 */
+ScrollArea#FunctionPageViewport {
+    background-color: transparent;
+    border: none;
+}
+
+/* 页面内容视图 */
+#LogReportPageView, #SettingsPageView, QWidget#FunctionPageView {
+    background-color: transparent;
+}
+
+/* 状态容器 */
+QWidget#status_container {
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+/* 卡片与文本框基础样式对齐 */
+CardWidget {
+    background-color: rgb(249, 249, 249);
+    border: 1px solid rgb(230, 230, 230);
+    border-radius: 8px;
+}
+
+TextEdit {
+    background-color: rgb(255, 255, 255);
+    border: 1px solid rgb(230, 230, 230);
+    border-radius: 6px;
+    color: rgb(50, 50, 50);
+}
+
+/* 日志页面 */
+ScrollArea#LogReportPageView {
+    background-color: transparent;
+}
+
+/* 设置页面 */
+#LogReportPageView, #SettingsPageView, ScrollArea#SettingsPageView {
+    background-color: transparent;
+}
+
+ScrollArea { background: transparent; border: none; }
+
+#FunctionPageViewport{
+    background: transparent; border: none;
+}
+
+#FunctionPageView{
+    background: transparent;
+}
+
