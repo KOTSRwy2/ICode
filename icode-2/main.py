@@ -18,6 +18,7 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 from qfluentwidgets import FluentIcon as FIF
+from app.common.icon import Icon
 from app.common.style_sheet import StyleSheet
 from app.common.config import cfg
 import qfluentwidgets, sys
@@ -80,10 +81,10 @@ class EEGFMRIFluentApp(FluentWindow):
 
     def _init_navigation(self):
         # 功能区
-        self.addSubInterface(self.page_eeg_src, FIF.PHOTO, "EEG源定位")
-        self.addSubInterface(self.page_eeg_conn, FIF.TILES, "EEG功能连接")
-        self.addSubInterface(self.page_fmri_act, FIF.VIDEO, "fMRI激活定位")
-        self.addSubInterface(self.page_fmri_conn, FIF.TAG, "fMRI功能连接")
+        self.addSubInterface(self.page_eeg_src, Icon.EEG_SOURCE_LOCALIZATION, "EEG源定位")
+        self.addSubInterface(self.page_eeg_conn, Icon.EEG_CONNECTIVITY, "EEG功能连接")
+        self.addSubInterface(self.page_fmri_act, Icon.FMRI_ACTIVATION, "fMRI激活定位")
+        self.addSubInterface(self.page_fmri_conn, Icon.FMRI_CONNECTIVITY, "fMRI功能连接")
         self.addSubInterface(self.page_network, FIF.CLOUD, "网络与云服务")
         
         self.navigationInterface.addSeparator()

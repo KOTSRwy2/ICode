@@ -25,6 +25,8 @@ class VisualizationWebWindow(QMainWindow):
         super().__init__(parent)
         self._html_path = html_path
         self._status_callback = status_callback
+        self._activation_mode = "激活" in (title or "")
+        self._reload_once_pending = self._activation_mode
         self.setWindowTitle(title)
         self.resize(1280, 860)
 
@@ -50,6 +52,18 @@ class VisualizationWebWindow(QMainWindow):
     def _on_load_finished(self, success):
         """加载完成后弹出窗口"""
         if success:
+            # 复现“弹窗显示后手动 reload 才正常”的路径：仅激活页自动执行一次
+            if self._reload_once_pending:
+                self._reload_once_pending = False
+                self.show()
+                self.raise_()
+                self.activateWindow()
+                QApplication.processEvents()
+                if self._status_callback:
+                    self._status_callback("检测到激活图需二次刷新，正在自动重载页面...")
+                QTimer.singleShot(120, self.web.reload)
+                return
+
             # 【关键优化】额外等待 300ms，让 Plotly 内部 JS 完成初次布局绘制
             if self._status_callback:
                 self._status_callback("报告渲染完成，正在启动交互窗口...")

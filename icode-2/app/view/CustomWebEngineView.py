@@ -27,9 +27,10 @@ class CustomWebEngineView(QWebEngineView):
     _profile_cache = {}
     _view_instances = weakref.WeakSet()
 
-    def __init__(self, parent=None, is_isolated=False):
+    def __init__(self, parent=None, is_isolated=False, compatibility_mode=False):
         super().__init__(parent)
         self.is_isolated = is_isolated
+        self.compatibility_mode = compatibility_mode
         self._download_items = []
         self._profile = None
         CustomWebEngineView._view_instances.add(self)
@@ -71,9 +72,9 @@ class CustomWebEngineView(QWebEngineView):
         s.setAttribute(QWebEngineSettings.LocalStorageEnabled, True)
         s.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
 
-        # 👇 只加了这两行，让3D图流畅，不影响任何功能
+        # 与驱动相关的加速路径：兼容模式下仅关闭 2D 硬件加速，降低黑屏概率。
         s.setAttribute(QWebEngineSettings.WebGLEnabled, True)
-        s.setAttribute(QWebEngineSettings.Accelerated2dCanvasEnabled, True)
+        s.setAttribute(QWebEngineSettings.Accelerated2dCanvasEnabled, not self.compatibility_mode)
 
     def _on_download_requested(self, download: QWebEngineDownloadItem):
         """【功能100%保留】处理文件下载"""
