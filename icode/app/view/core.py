@@ -107,7 +107,7 @@ UPLOAD_CONFIG = {
         "pie_path": "fMRI功能连接/正负功能连接比例饼图",        
         "path_metrics": "fMRI功能连接/滑动窗口功能连接动态指标图",
         "path_npy": "fMRI功能连接/全窗口连接矩阵npy文件",
-        "path_csv": "fMRI功能连接/滑动窗口动态指标csv文件的文件夹"
+        "path_csv": "fMRI功能连接/滑动窗口动态指标csv文件"
     }
 }
 

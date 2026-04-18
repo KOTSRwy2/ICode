@@ -790,7 +790,7 @@ def show_source_localization_window(result, html_output_path: str = None, logger
     else:
         bg_color = "black"
         fg_color = None
-
+    # Qwen3.5-Plus使用情况说明：2026年3月15日 14:30–15:15 plot函数参考AI给出示例，和官方文档进行样式编写。在AI示例之上扩展了主体色适配的功能，编写了_apply_mne_window_theme函数实现了主体的适应
     brain = stc.plot(
         subject=subject,
         subjects_dir=subjects_dir,
