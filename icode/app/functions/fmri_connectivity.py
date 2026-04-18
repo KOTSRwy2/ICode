@@ -346,7 +346,7 @@ class FMRIConnectivityThread(QThread):
                 valid_idx = np.where(valid_window_mask)[0]
                 window_conn[np.ix_(valid_idx, valid_idx)] = corr
 
-                # 计算指标（只看上三角，不含对角线）
+                # 计算指标
                 mask = np.triu(np.ones_like(window_conn, dtype=bool), k=1)
                 vals = window_conn[mask]
                 mean_conn_strength = np.mean(np.abs(vals))
@@ -813,6 +813,7 @@ class FMRIConnectivityThread(QThread):
         if not np.any(valid_region_mask):
             raise ValueError("没有有效脑区时间序列！")
 
+        # AI辅助生成：豆包4.0, 2026-3-30
         roi_timeseries = roi_timeseries[valid_region_mask]
         unique_labels = unique_labels[valid_region_mask]
         n_valid_regions = len(unique_labels)
@@ -820,8 +821,8 @@ class FMRIConnectivityThread(QThread):
 
         self.log_pyqtSignal.emit("生成脑区坐标...")
 
-        aal_coords_full = []  # 计算用：全脑区
-        aal_coords_3d = []  # 3D图用：过滤后
+        aal_coords_full = []  # 计算用
+        aal_coords_3d = []  # 3D图用
         valid_indices_3d = []
 
         X_RANGE = (-80, 80)
@@ -978,6 +979,8 @@ class FMRIConnectivityThread(QThread):
         results_paths['path_heatmap'] = path_heatmap
         results_paths['path_csv'] = path_csv
         results_paths['path_npy'] = path_npy
+
+        # AI辅助生成：豆包4.0, 2026-3-15
         self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
 
         sub_dir_main = os.path.join(self.output_dir, "3D交互式功能连接脑网络图")

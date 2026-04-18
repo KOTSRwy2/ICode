@@ -74,7 +74,7 @@ class FMRIActivationThread(QThread):
         fmri_preprocessed = masking.unmask(fmri_masked, mask_img)
         return fmri_preprocessed, mask_img
 
-    # AI辅助生成：豆包4.0, 2026-3-26
+
     def _visualize_fmri_activation(self, fmri_img, mask_img):
         self.log_pyqtSignal.emit("生成fMRI激活可视化HTML...")
         fmri_mean = image.mean_img(fmri_img)
@@ -124,6 +124,8 @@ class FMRIActivationThread(QThread):
         if os.path.exists(html_path):
             self.log_pyqtSignal.emit(f"fMRI激活HTML已生成：{html_path}")
 
+
+        # AI辅助生成：豆包4.0, 2026-3-26
         self.log_pyqtSignal.emit("生成激活统计图表...")
 
         # 1. 读取激活数据
