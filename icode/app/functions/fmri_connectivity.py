@@ -76,7 +76,7 @@ class FMRIConnectivityThread(QThread):
             self.log_pyqtSignal.emit(f"fMRI处理出错：{str(e)}")
             QMessageBox.critical(None, "错误", f"fMRI处理失败：{str(e)}")
 
-    # AI辅助生成：豆包4.0, 2026-4-06
+    # AI辅助生成：豆包2.7.6, 2026-4-06
     def _preprocess_fmri(self):
         self.log_pyqtSignal.emit("读取fMRI NIfTI文件...")
         fmri_img = nib.load(self.fmri_nifti_path)
@@ -813,7 +813,7 @@ class FMRIConnectivityThread(QThread):
         if not np.any(valid_region_mask):
             raise ValueError("没有有效脑区时间序列！")
 
-        # AI辅助生成：豆包4.0, 2026-3-30
+        # AI辅助生成：豆包2.7.6, 2026-3-30
         roi_timeseries = roi_timeseries[valid_region_mask]
         unique_labels = unique_labels[valid_region_mask]
         n_valid_regions = len(unique_labels)
@@ -980,7 +980,7 @@ class FMRIConnectivityThread(QThread):
         results_paths['path_csv'] = path_csv
         results_paths['path_npy'] = path_npy
 
-        # AI辅助生成：豆包4.0, 2026-3-15
+        # AI辅助生成：豆包2.7.6, 2026-3-15
         self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
 
         sub_dir_main = os.path.join(self.output_dir, "3D交互式功能连接脑网络图")

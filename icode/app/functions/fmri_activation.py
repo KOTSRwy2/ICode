@@ -125,7 +125,7 @@ class FMRIActivationThread(QThread):
             self.log_pyqtSignal.emit(f"fMRI激活HTML已生成：{html_path}")
 
 
-        # AI辅助生成：豆包4.0, 2026-3-26
+        # AI辅助生成：豆包2.7.6, 2026-3-26
         self.log_pyqtSignal.emit("生成激活统计图表...")
 
         # 1. 读取激活数据
