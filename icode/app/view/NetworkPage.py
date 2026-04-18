@@ -216,7 +216,7 @@ class NetworkPage(ScrollArea):
         self.main_layout.addWidget(title_label)
         self.main_layout.addWidget(description)
 
-        # OSS 配置区域  AI辅助生成：Qwen3.5-Plus, 2026-03-20 ai辅助生成网络服务配置界面，包含输入框和保存按钮
+        # OSS 配置区域  AI辅助生成：DeepSeek-R1-2026, 2026-03-20 ai辅助生成网络服务配置界面，包含输入框和保存按钮
         oss_group_label = SubtitleLabel("OSS 账户配置", self.view)
         oss_group_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-top: 10px;")
         self.main_layout.addWidget(oss_group_label)
