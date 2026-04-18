@@ -26,7 +26,6 @@ class _SourceMissingUploadThread(QThread):
         oss_urls = dict(self.result_data.get("oss_urls") or {})
         path_map = UPLOAD_CONFIG.get("EEG_SOURCE", {})
 
-        # 只补传缺失项：重点覆盖 main / hist_path，且不影响已成功上传项
         for key in ("main", "hist_path"):
             if oss_urls.get(key):
                 continue
@@ -208,7 +207,6 @@ class EEGSourcePage(BaseFunctionPage):
 
                 brain = show_source_localization_window(result_data, logger=ui_log)
 
-                # 3D 图导出在主线程完成后，再补传缺失的主图/直方图
                 def start_missing_upload():
                     if self.upload_worker is not None and self.upload_worker.isRunning():
                         return

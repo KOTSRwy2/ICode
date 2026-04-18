@@ -85,7 +85,7 @@ class PlotlyHTMLInjector:
         """仅注入帧显示组件"""
         return self._process_single_injection(html_path, self._inject_frame_display_content)
 
-    # ==================== 内部处理方法 ====================
+    # 内部处理方法
 
     def _process_single_injection(self, html_path: str, inject_func) -> bool:
         """处理单个注入操作"""
@@ -106,7 +106,7 @@ class PlotlyHTMLInjector:
             print(f"[PlotlyHTMLInjector] 注入失败：{str(e)}")
             return False
 
-    # ==================== 注入内容生成方法 ====================
+    # 注入内容生成方法
 
     def _inject_fluent_css_content(self, content: str) -> str:
         """生成 Fluent CSS 注入内容"""
@@ -127,7 +127,7 @@ class PlotlyHTMLInjector:
 
     def _inject_animation_control_content(self, content: str) -> str:
         """生成动画控制脚本内容"""
-        # ===== 添加隐藏按钮的 CSS =====
+        # 添加隐藏按钮的 CSS
         hide_css = """
         <style>
             /* 隐藏 Plotly 内置的播放/暂停按钮 */
@@ -313,7 +313,7 @@ class PlotlyHTMLInjector:
         """
         return self._inject_to_body(content, display_html)
 
-    # ==================== HTML 操作工具方法 ====================
+    # HTML 操作工具方法
 
     def _inject_to_head(self, content: str, script: str) -> str:
         """注入内容到 <head> 标签"""
@@ -327,7 +327,7 @@ class PlotlyHTMLInjector:
             return content.replace('</body>', f'{script}</body>')
         return content
 
-    # ==================== 批量处理方法 ====================
+    # 批量处理方法
 
     def inject_multiple(self, html_paths: list, options: Optional[Dict[str, bool]] = None) -> Dict[str, bool]:
         """

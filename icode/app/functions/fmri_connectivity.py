@@ -58,7 +58,7 @@ class FMRIConnectivityThread(QThread):
         self.step_strategy = step_strategy
         self.step_param = step_param
 
-        # 实际生效的窗口/步长（初始化后动态计算）
+        # 实际生效的窗口/步长
         self.window_size = None
         self.step_size = None
 
@@ -130,7 +130,7 @@ class FMRIConnectivityThread(QThread):
         """
         self.log_pyqtSignal.emit(f"自适应计算滑动窗口参数（总时间点：{n_timepoints}，TR：{self.tr}s）")
 
-        # ========== 1. 计算窗口大小 ==========
+        # 1. 计算窗口大小
         if self.window_strategy == "time_based":
             # 按时间长度（秒）计算窗口（如60秒）
             target_seconds = self.window_param
@@ -151,9 +151,9 @@ class FMRIConnectivityThread(QThread):
         # 窗口不能超过总时间点
         self.window_size = min(self.window_size, n_timepoints)
 
-        # ========== 2. 计算步长 ==========
+        # 2. 计算步长
         if self.step_strategy == "auto":
-            # 自动步长：窗口大小的1/3（经典滑动窗口策略）
+            # 自动步长：窗口大小的1/3
             self.step_size = max(1, int(np.round(self.window_size / 3)))
             self.log_pyqtSignal.emit(f"自动步长：窗口1/3 → 步长{self.step_size}个时间点")
 
@@ -162,8 +162,7 @@ class FMRIConnectivityThread(QThread):
             self.step_size = max(1, min(self.step_param, self.window_size))
             self.log_pyqtSignal.emit(f"固定步长：步长{self.step_size}个时间点（原始{self.step_param}）")
 
-        # ========== 3. 边界校验 ==========
-        # 确保至少能生成1个窗口
+        # 3. 边界校验
         if self.window_size > n_timepoints:
             self.window_size = n_timepoints
             self.step_size = 1
@@ -220,15 +219,15 @@ class FMRIConnectivityThread(QThread):
         if pos_ratio > 0:
             labels.append("正连接")
             sizes.append(pos_count)
-            colors.append('#E74C3C')  # 柔和红
+            colors.append('#E74C3C')
         if neg_ratio > 0:
             labels.append("负连接")
             sizes.append(neg_count)
-            colors.append('#3498DB')  # 柔和蓝
+            colors.append('#3498DB')
         if zero_ratio > 0:
             labels.append("Zero")
             sizes.append(zero_count)
-            colors.append('#BDC3C7')  # 银灰色
+            colors.append('#BDC3C7')
 
             # 创建图形
         fig = go.Figure(data=[go.Pie(
@@ -476,7 +475,7 @@ class FMRIConnectivityThread(QThread):
                 name=str(i)
             ))
         fig.frames = frames
-        # ========== 更新布局 ==========
+        # 更新布局
         fig.update_layout(
             updatemenus=[{
                 'type': 'buttons',
@@ -552,7 +551,7 @@ class FMRIConnectivityThread(QThread):
 
         fig.update_layout(showlegend=True)
 
-        # ========== 更新各子图的坐标轴配置 ==========
+        # 更新各子图的坐标轴配置
         fig.update_xaxes(
             title='时间 (秒)',
             showticklabels=True,
@@ -661,7 +660,7 @@ class FMRIConnectivityThread(QThread):
             [1.0, '#FF0000']
         ]
 
-        # ===== 添加每个子图的热力图 =====
+        # 添加每个子图的热力图
         for idx, win_idx in enumerate(key_window_indices):
             conn = window_conn_matrices[win_idx][:83, :83]
 
@@ -699,7 +698,7 @@ class FMRIConnectivityThread(QThread):
             width=500 * len(key_window_indices)
         )
 
-        # ===== 更新各子图的坐标轴配置 =====
+        # 更新各子图的坐标轴配置
         for idx in range(1, len(key_window_indices) + 1):
             fig_heatmap.update_xaxes(
                 title='脑区索引',
@@ -903,7 +902,7 @@ class FMRIConnectivityThread(QThread):
             )
         )
 
-        # ===== 更新布局）=====
+        # 更新布局
         fig.update_layout(
             title=dict(
                 text='fMRI 功能连接矩阵',
@@ -918,7 +917,7 @@ class FMRIConnectivityThread(QThread):
             showlegend=False,
         )
 
-        # ===== 更新坐标轴配置 =====
+        # 更新坐标轴配置
         fig.update_xaxes(
             title='脑区索引',
             tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
@@ -942,7 +941,7 @@ class FMRIConnectivityThread(QThread):
             dtick = 10
         )
 
-        # ===== 保存文件 (全脑功能连接矩阵) =====
+        # 保存全脑功能连接矩阵
         sub_dir_full_heatmap = os.path.join(self.output_dir, "全脑功能连接矩阵")
         os.makedirs(sub_dir_full_heatmap, exist_ok=True)
         path_full_heatmap = os.path.join(sub_dir_full_heatmap, f"{base_name}_connectivity_heatmap_full.html")
@@ -969,12 +968,10 @@ class FMRIConnectivityThread(QThread):
 
         self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{path_full_heatmap}")
 
-        # 修改：传入base_name参数，确保饼图文件使用正确前缀
         pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir, base_name=base_name)
         results_paths['pie_path'] = pie_path
         results_paths['path_full_heatmap'] = path_full_heatmap
 
-        # 修改：传入base_name参数，确保滑动窗口相关文件使用正确前缀
         path_metrics, path_heatmap, path_csv, path_npy = self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr, base_name=base_name)
         results_paths['path_metrics'] = path_metrics
         results_paths['path_heatmap'] = path_heatmap
@@ -1043,7 +1040,6 @@ class FMRIConnectivityThread(QThread):
 
         return results_paths
 
-    # 补充缺失的可视化方法（避免运行报错）
     def _visualize_fmri_activation(self, fmri_img, mask_img):
         self.log_pyqtSignal.emit("跳过激活可视化（已在独立线程实现）...")
         pass

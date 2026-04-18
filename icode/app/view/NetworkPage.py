@@ -21,7 +21,7 @@ from ..common.style_sheet import StyleSheet
 from ..common.config import cfg
 
 
-# ==================== 后台检测线程（防止界面卡死）====================
+# 后台检测线程
 class NetworkCheckThread(QThread):
     """网络检测后台线程，避免界面卡顿"""
     finished_sig = pyqtSignal(bool, str, dict)
@@ -181,7 +181,7 @@ class NetworkCheckThread(QThread):
         self.finished_sig.emit(True, final_msg, report)
 
 
-# ==================== 网络服务页面（改造后的主界面）====================
+# 网络服务页面
 class NetworkPage(ScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent=parent)

@@ -9,13 +9,13 @@ from qfluentwidgets import InfoBarPosition, InfoBar
 
 
 class CustomWebEnginePage(QWebEnginePage):
-    """【功能100%保留】自定义 WebEnginePage，处理新窗口跳转"""
+    """自定义 WebEnginePage，处理新窗口跳转"""
 
     def __init__(self, profile, parent=None):
         super().__init__(profile, parent)
 
     def createWindow(self, window_type):
-        """【功能100%保留】处理 target='_blank' 等新窗口请求"""
+        """处理 target='_blank' 等新窗口请求"""
         new_view = CustomWebEngineView(self.parent())
         new_view.setWindowTitle("新窗口")
         new_view.show()
@@ -23,7 +23,7 @@ class CustomWebEnginePage(QWebEnginePage):
 
 
 class CustomWebEngineView(QWebEngineView):
-    """【功能100%保留】支持下载、多窗口及自动资源清理的 WebEngineView"""
+    """支持下载、多窗口及自动资源清理的 WebEngineView"""
     _profile_cache = {}
     _view_instances = weakref.WeakSet()
 
@@ -37,11 +37,10 @@ class CustomWebEngineView(QWebEngineView):
         self._setup_webengine()
 
     def _setup_webengine(self):
-        """【功能100%保留】配置 WebEngine，只在最后加了两行硬件加速"""
+        """配置 WebEngine，硬件加速"""
         top_window = self.window()
         parent_id = id(top_window) if top_window else id(self)
 
-        # 【核心优化】如果是隔离模式，或者还没缓存过该窗口的 profile
         if self.is_isolated:
             # 独立进程模式：使用随机 ID 确保完全隔离
             import uuid
@@ -77,7 +76,7 @@ class CustomWebEngineView(QWebEngineView):
         s.setAttribute(QWebEngineSettings.Accelerated2dCanvasEnabled, not self.compatibility_mode)
 
     def _on_download_requested(self, download: QWebEngineDownloadItem):
-        """【功能100%保留】处理文件下载"""
+        """处理文件下载"""
         suggested_filename = download.downloadFileName()
         default_path = os.path.join(os.path.expanduser("~"), "Downloads", suggested_filename)
 
@@ -93,12 +92,12 @@ class CustomWebEngineView(QWebEngineView):
             download.cancel()
 
     def _on_download_finished(self, download, save_path):
-        """【功能100%保留】下载完成提示"""
+        """下载完成提示"""
         if download.isFinished():
             self._show_info_bar(f"下载完成", f"文件已保存至：{os.path.basename(save_path)}")
 
     def _show_info_bar(self, title, content):
-        """【功能100%保留】显示通知"""
+        """显示通知"""
         InfoBar.success(
             title=title, content=content, orient=Qt.Horizontal,
             isClosable=True, position=InfoBarPosition.TOP_RIGHT,
@@ -106,7 +105,7 @@ class CustomWebEngineView(QWebEngineView):
         )
 
     def cleanup(self):
-        """【功能100%保留】显式释放资源"""
+        """显式释放资源"""
         try:
             old_page = self.page()
             self.setPage(QWebEnginePage(None))
@@ -120,14 +119,14 @@ class CustomWebEngineView(QWebEngineView):
             pass
 
     def closeEvent(self, event):
-        """【功能100%保留】窗口关闭事件"""
+        """窗口关闭事件"""
         self.cleanup()
         CustomWebEngineView._view_instances.discard(self)
         super().closeEvent(event)
 
 
 def cleanup_all_profiles():
-    """【功能100%保留】全局清理逻辑"""
+    """全局清理逻辑"""
     for view in list(CustomWebEngineView._view_instances):
         if view:
             view.cleanup()

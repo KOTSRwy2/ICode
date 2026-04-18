@@ -134,7 +134,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
         )
     )
 
-    # ===== 更新布局 =====
+    # 更新布局
     fig.update_layout(
         title=dict(
             text=f'功能连接矩阵 ({bdf_stem})',
@@ -149,7 +149,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
         showlegend=False,
     )
 
-    # ===== 更新坐标轴配置 =====
+    # 更新坐标轴配置
     fig.update_xaxes(
         title='脑区索引',
         tickfont=dict(family="Segoe UI, Arial", size=8, color="#000000"),
@@ -174,7 +174,7 @@ def _plot_fc_matrix(con_matrix, label_names, output_dir, bdf_stem, html_injector
         autorange='reversed'
     )
 
-    # ===== 保存文件 =====
+    # 保存文件
     fc_matrix_path = os.path.join(output_dir, f"{bdf_stem}_fc_matrix.html")
     fig.write_html(
         fc_matrix_path,
@@ -363,7 +363,7 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
     import numpy as np
     from scipy.spatial.distance import pdist
 
-    # 1. 计算每个脑区中心的坐标
+    # 计算每个脑区中心的坐标
     coords = []
     for label in labels:
         v_idx = label.center_of_mass(subject=subject, subjects_dir=subjects_dir)
@@ -372,14 +372,14 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
         coords.append(pos)
     coords = np.array(coords)
 
-    # 2. 计算两两脑区间的欧几里得距离
+    # 计算两两脑区间的欧几里得距离
     dist_vector = pdist(coords)
 
-    # 3. 提取对应的连接强度
+    # 提取对应的连接强度
     upper_idx = np.triu_indices(len(con_matrix), k=1)
     weight_vector = con_matrix[upper_idx]
 
-    # 4. 绘图
+    # 绘图
     fig = go.Figure(
         data=go.Scatter(
             x=dist_vector,
@@ -646,7 +646,7 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
 
     logger("后台计算完成，等待主线程生成 3D 场景并导出 HTML...")
     logger("========== 功能连接计算结束 ==========")
-    # ======= 新增：统计图生成开始 =======
+
     outputs_dir = _get_outputs_dir()
     bdf_stem = Path(bdf_path).stem
     label_names = [lab.name for lab in labels]
@@ -686,7 +686,6 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
         logger(f"部分统计图生成或目录创建失败: {str(e)}")
         import traceback
         logger(traceback.format_exc())
-    # ======= 新增：统计图生成结束 =======
 
     # 5. 3D 脑网络图 (main)
     sub_dir_main = outputs_dir / "交互式EEG脑网络三维图"
@@ -732,7 +731,6 @@ def render_connectivity_html(result, logger=None):
 
     logger("========== 主线程渲染开始 ==========")
 
-    # 这里才设置 3D 后端，并创建 Brain
     logger("正在设置 3D 后端：pyvistaqt")
     mne.viz.set_3d_backend("pyvistaqt")
 

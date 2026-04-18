@@ -128,7 +128,7 @@ class InteractiveChartCard(CardWidget):
         # 主标题
         self.title_label = SubtitleLabel(self.title, self)
 
-        # 带有 i 图标的可悬浮说明区
+        # i 图标说明区
         self.info_widget = ClickableInfoWidget(self.description, self.detail_text, self.chart_name,self.tutorial_url,self.image_url)
 
         self.title_layout.addWidget(self.title_label)
@@ -178,8 +178,6 @@ class InteractiveChartCard(CardWidget):
             self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             self.web_view.setObjectName("web_view")
 
-            # 不再在 init 时立即 load，改为由外部调用 load_chart() 触发
-
             self.content_widget = self.web_view
         else:
             self.image_label = QLabel(self)
@@ -197,7 +195,6 @@ class InteractiveChartCard(CardWidget):
 
             if os.path.exists(self.file_path):
                 pixmap = QPixmap(self.file_path)
-                # 按比例缩放图片以适应标签
                 scaled_pixmap = pixmap.scaled(
                     self.image_label.size(),
                     Qt.KeepAspectRatio,
@@ -213,7 +210,7 @@ class InteractiveChartCard(CardWidget):
         self.v_layout.addWidget(self.content_widget)
 
     def load_chart(self):
-        """【新增】手动触发图表渲染，用于实现 staggered loading（交错加载）"""
+        """手动触发图表渲染，用于实现交错加载"""
         if self.is_loaded:
             return
         
@@ -221,7 +218,6 @@ class InteractiveChartCard(CardWidget):
             if os.path.exists(self.file_path):
                 self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.file_path)))
         else:
-            # 图片类型直接在初始化时已经处理了，这里仅做兼容
             pass
             
         self.is_loaded = True

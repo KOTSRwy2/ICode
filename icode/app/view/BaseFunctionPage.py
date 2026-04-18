@@ -17,9 +17,9 @@ from pathlib import Path
 from ..common.path_utils import get_project_root
 
 class VisualizationWebWindow(QMainWindow):
-    """【优化版】仅在内容完全加载后才显示窗口，避免空白感"""
-    ready_sig = pyqtSignal() # 新增信号：页面完全渲染稳定后发射
-    closed_sig = pyqtSignal() # 新增信号：窗口被关闭时发射
+    """在内容完全加载后显示窗口"""
+    ready_sig = pyqtSignal()
+    closed_sig = pyqtSignal()
 
     def __init__(self, html_path: str, title: str = "可视化结果", parent=None, status_callback=None):
         super().__init__(parent)
@@ -52,7 +52,6 @@ class VisualizationWebWindow(QMainWindow):
     def _on_load_finished(self, success):
         """加载完成后弹出窗口"""
         if success:
-            # 复现“弹窗显示后手动 reload 才正常”的路径：仅激活页自动执行一次
             if self._reload_once_pending:
                 self._reload_once_pending = False
                 self.show()
@@ -64,7 +63,6 @@ class VisualizationWebWindow(QMainWindow):
                 QTimer.singleShot(120, self.web.reload)
                 return
 
-            # 【关键优化】额外等待 300ms，让 Plotly 内部 JS 完成初次布局绘制
             if self._status_callback:
                 self._status_callback("报告渲染完成，正在启动交互窗口...")
             QTimer.singleShot(300, self._show_and_focus)
@@ -73,7 +71,7 @@ class VisualizationWebWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
-        # 强制处理一次事件，确保交互即时响应
+
         QApplication.processEvents()
         if self._status_callback:
             self._status_callback("报告已就绪。")
@@ -83,7 +81,7 @@ class VisualizationWebWindow(QMainWindow):
         self.closed_sig.emit()
         super().closeEvent(event)
 
-# ===================== BaseFunctionPage 完全保持原样，不用动 =====================
+
 # 基础功能页面模板
 class BaseFunctionPage(ScrollArea):
     """提取四大功能页的共用逻辑：标题、文件选择、运行按钮、以及置底的进度条"""
@@ -110,7 +108,6 @@ class BaseFunctionPage(ScrollArea):
         self.title_label = SubtitleLabel(title, self.view)
         self.desc_label = BodyLabel(description, self.view)
         self.desc_label.setWordWrap(True)
-        # 使用 QFluentWidgets 默认配色，确保在深浅主题下均有良好的可读性
 
         self.main_layout.addWidget(self.title_label)
         self.main_layout.addWidget(self.desc_label)
@@ -196,7 +193,6 @@ class BaseFunctionPage(ScrollArea):
         if not html_path or not os.path.exists(html_path):
             return None
         self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window(), status_callback=status_callback)
-        # self._viz_window.show()  # 移除立即显示，改为由窗口内部加载完成后再显式弹出
         return self._viz_window
 
     def _on_theme_changed(self, theme: Theme):

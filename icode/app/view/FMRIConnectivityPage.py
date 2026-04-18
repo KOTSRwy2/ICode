@@ -114,9 +114,7 @@ class FMRIConnectivityPage(BaseFunctionPage):
             self.show_error_dialog("计算错误", str(result_data))
             return
 
-        # ==========================================================
         # 提取本地路径与 OSS 链接
-        # ==========================================================
         res_paths = result_data if isinstance(result_data, dict) else {}
         
         # 1. 提取主 3D 视图 HTML 路径
@@ -133,9 +131,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
         if main_path and os.path.exists(str(main_path)):
             viz_win = self.show_html_in_subwindow(main_path, "fMRI 功能连接脑网络 3D 可视化")
 
-        # ==========================================================
-        # 卡片加载逻辑：恢复详细的临床释义
-        # ==========================================================
         def create_and_load_cards():
             """创建卡片并恢复详细的临床释义"""
             self._clear_previous_cards()
@@ -260,7 +255,6 @@ class FMRIConnectivityPage(BaseFunctionPage):
             # 加载完成后更新状态
             QTimer.singleShot(1200, lambda: self.set_running_state(False, "执行完成"))
 
-        # 加载时机控制：弹窗就绪或关闭后再加载卡片
         if viz_win and hasattr(viz_win, 'ready_sig'):
             viz_win.ready_sig.connect(create_and_load_cards)
         elif viz_win and hasattr(viz_win, 'destroyed'):
@@ -268,5 +262,4 @@ class FMRIConnectivityPage(BaseFunctionPage):
         else:
             QTimer.singleShot(1000, create_and_load_cards)
 
-        # 强制刷新UI
         QApplication.processEvents()

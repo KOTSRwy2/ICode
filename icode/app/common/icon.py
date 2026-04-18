@@ -14,7 +14,6 @@ class Icon(FluentIconBase, Enum):
 
     def path(self, theme=Theme.AUTO):
         if theme == Theme.AUTO:
-            # qfluentwidgets 在 AUTO 时基于当前主题返回 black/white 图标色，需转换为主题名
             color = getIconColor(theme).lower()
             theme = Theme.DARK if color == "white" else Theme.LIGHT
 

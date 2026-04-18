@@ -111,7 +111,7 @@ class LogReportPage(QWidget):
                 text = record.get("text", "")
                 f.write(f"{time_str}\t{mod}\t{text}\n")
 
-    # ====================== 清空日志 ======================
+    # 清空日志
     def _clear_logs(self):
         if hasattr(log_manager, 'records'):
             log_manager.records.clear()

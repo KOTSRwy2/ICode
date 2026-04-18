@@ -7,8 +7,6 @@ from .path_utils import get_resource_path
 
 
 class StyleSheet(StyleSheetBase, Enum):
-    """ Style sheet  """
-
     MAIN = "main"
     INTERACTIVE_CHART_CARD = "interactive_chart_card"
 

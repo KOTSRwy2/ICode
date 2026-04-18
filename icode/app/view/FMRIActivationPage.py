@@ -22,8 +22,7 @@ class FMRIActivationPage(BaseFunctionPage):
         self.fmri_path = ""
         self.worker = None
         self.cards_container = None
-        
-        # 定义基础目录，解决图片加载路径问题
+
         self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
         self._init_ui()
@@ -114,9 +113,7 @@ class FMRIActivationPage(BaseFunctionPage):
             self.show_error_dialog("分析异常", str(result_data))
             return
 
-        # ==========================================================
         # 提取本地路径与 OSS 链接
-        # ==========================================================
         res_paths = result_data if isinstance(result_data, dict) else {}
         
         # 1. 提取主 3D 视图
@@ -133,9 +130,6 @@ class FMRIActivationPage(BaseFunctionPage):
         if main_path and os.path.exists(str(main_path)):
             viz_win = self.show_html_in_subwindow(main_path, "fMRI 脑激活定位 3D 可视化")
 
-        # ==========================================================
-        # 卡片加载逻辑：恢复详细的临床释义
-        # ==========================================================
         def create_and_load_cards():
             """创建卡片并恢复详细的临床释义"""
             self._clear_previous_cards()
@@ -212,7 +206,6 @@ class FMRIActivationPage(BaseFunctionPage):
             
             QTimer.singleShot(600, lambda: self.set_running_state(False, "执行完成"))
 
-        # 加载时机控制：弹窗就绪或关闭后再加载卡片
         if viz_win and hasattr(viz_win, 'ready_sig'):
             viz_win.ready_sig.connect(create_and_load_cards)
         elif viz_win and hasattr(viz_win, 'destroyed'):
@@ -220,5 +213,4 @@ class FMRIActivationPage(BaseFunctionPage):
         else:
             QTimer.singleShot(1000, create_and_load_cards)
 
-        # 强制刷新UI
         QApplication.processEvents()

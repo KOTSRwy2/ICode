@@ -131,7 +131,7 @@ def _plot_source_time_course_plotly(stc, output_dir, bdf_stem, band_label, html_
     times = stc.times * 1000  # 转换为毫秒
     mean_data = np.mean(np.abs(stc.data), axis=0)
 
-    # ===== 创建帧动画 =====
+    # 创建帧动画
     frames = []
     for i in range(1, len(times) + 1, 50):
         frames.append(go.Frame(
@@ -409,7 +409,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
     psd_db = 10 * np.log10(psd + 1e-25)
     psd_db -= np.max(psd_db)
 
-    # ===== 创建帧动画 =====
+    # 创建帧动画
     frames = []
     for i in range(1, len(freqs) + 1, 2):
         frames.append(go.Frame(
@@ -558,7 +558,7 @@ def compute_source_localization(
     mne.viz.set_3d_backend("pyvistaqt")
 
     # 3. 读取 BDF
-    # 改成延迟加载：先裁剪，再真正加载数据，比 preload=True 更合理
+    # 延迟加载：先裁剪，再真正加载数据
     logger("正在读取 BDF 数据（延迟加载）...")
     raw = mne.io.read_raw_bdf(bdf_path, preload=False)
 
@@ -599,7 +599,6 @@ def compute_source_localization(
         elif ch_upper in ["EMG1", "EMG2"]:
             ch_type_map[ch] = "emg"
         elif ch_upper == "STATUS":
-            # 将 Status 设为 stim 通道。如果确定不再需要，也可以加入 channels_to_drop
             ch_type_map[ch] = "stim"
 
     if ch_type_map:
@@ -616,7 +615,6 @@ def compute_source_localization(
     all_chan_names = [ch.upper() for ch in raw.ch_names]
 
     if "A1" in all_chan_names and "B1" in all_chan_names:
-        # 核心修复：定义 BioSemi 64 (A/B) 到 10-20 系统的标准映射字典
         biosemi_mapping = {
             'A1': 'Fp1', 'A2': 'AF7', 'A3': 'AF3', 'A4': 'F1', 'A5': 'F3', 'A6': 'F5', 'A7': 'F7', 'A8': 'FT7',
             'A9': 'FC5', 'A10': 'FC3', 'A11': 'FC1', 'A12': 'C1', 'A13': 'C3', 'A14': 'C5', 'A15': 'T7', 'A16': 'TP7',
@@ -693,7 +691,6 @@ def compute_source_localization(
 
     initial_time = float(stc.times[len(stc.times) // 2])
 
-    # === 新增：局部隔离的统计图导出逻辑 ===
     time_course_path = ""
     hist_path = ""
     region_path = ""

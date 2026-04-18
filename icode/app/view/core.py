@@ -18,7 +18,6 @@ MODULE_FMRI_CONN = "fMRI功能连接"
 MODULE_NETWORK = "网络与云服务"  
 MODULE_SYSTEM = "系统"
 
-# ======== 新增：日志节流器（防止刷屏卡死 UI） ========
 class LogThrottler:
     def __init__(self, signal, interval_ms=200):
         self.signal = signal
@@ -27,7 +26,6 @@ class LogThrottler:
         self.last_time = datetime.now()
 
     def emit(self, msg):
-        # 统一转换为字符串，避免上游 logger 传入 list/dict 导致 join 报错
         self.buffer.append(str(msg))
         now = datetime.now()
         if (now - self.last_time).total_seconds() * 1000 > self.interval:
@@ -36,14 +34,13 @@ class LogThrottler:
 
     def _flush(self):
         if self.buffer:
-            # 仅发射最新一条，避免一次性多行刷到前端造成卡顿
             self.signal.emit(self.buffer[-1])
             self.buffer = []
 
     def finish(self):
         self._flush()
 
-# ======== 全局日志管理 ========
+# 全局日志管理
 class LogManager(QObject):
     log_updated = pyqtSignal()
     _instance = None
@@ -78,7 +75,7 @@ class LogManager(QObject):
 # 实例化全局对象
 log_manager = LogManager()
 
-# ======== OSS 路径配置表 ========
+# OSS 路径配置表
 UPLOAD_CONFIG = {
     "EEG_SOURCE": {
         "main": "EEG源定位/EEG源定位图",
@@ -113,7 +110,7 @@ UPLOAD_CONFIG = {
 
 from ..common.config import cfg
 
-# ======== OSS 基础上传函数 ========
+# OSS 基础上传函数
 def _oss_internal_put(file_path, folder):
     try:
         access_key_id = cfg.ossAccessKeyId.value
@@ -139,7 +136,7 @@ def _oss_internal_put(file_path, folder):
         log_manager.add_log(f"OSS上传错误: {str(e)}", MODULE_NETWORK)
         return None
 
-# ======== 通用工作线程 ========
+# 通用工作线程
 class WorkerThread(QThread):
     finished_sig = pyqtSignal(bool, object)
     log_sig = pyqtSignal(str)
@@ -158,7 +155,7 @@ class WorkerThread(QThread):
         except Exception as e:
             self.finished_sig.emit(False, str(e) + "\n" + traceback.format_exc())
 
-# ======== EEG 专用线程（已修复：使用日志节流器） ========
+# EEG线程
 class EEGWorkerThread(QThread):
     finished_sig = pyqtSignal(bool, object)
     log_sig = pyqtSignal(str)
@@ -225,7 +222,7 @@ class EEGWorkerThread(QThread):
             self.log_sig.emit(f"错误: {str(e)}")
             self.finished_sig.emit(False, traceback.format_exc())
 
-# ======== fMRI 专用线程 ========
+# fMRI线程
 class FMRIWorkerThread(QThread):
     finished_sig = pyqtSignal(bool, object)
     log_sig = pyqtSignal(str)

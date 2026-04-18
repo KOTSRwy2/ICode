@@ -251,3 +251,6 @@ icode/app/view/__pycache__/FMRIConnectivityPage.cpython-310.pyc
 icode/app/view/__pycache__/InteractiveChartCard.cpython-310.pyc
 icode/app/view/__pycache__/LogReportPage.cpython-310.pyc
 icode/app/view/__pycache__/NetworkPage.cpython-310.pyc
+icode/build
+icode/dist
+icode/outputs

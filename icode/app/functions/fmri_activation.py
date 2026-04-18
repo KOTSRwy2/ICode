@@ -263,7 +263,7 @@ class FMRIActivationThread(QThread):
             "threshold": float(threshold),
             "activated_voxels": int(np.sum(data > threshold))
         }
-        # 核心修改：添加base_name前缀，和其他文件命名统一
+
         sub_dir_json = os.path.join(self.output_dir, "fMRI脑区激活总结")
         os.makedirs(sub_dir_json, exist_ok=True)
         summary_json_path = os.path.join(sub_dir_json, f"{base_name}_activation_summary.json")
@@ -274,7 +274,7 @@ class FMRIActivationThread(QThread):
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths
 
-    # 补充缺失的_compute_fmri_connectivity方法（避免运行报错）
+
     def _compute_fmri_connectivity(self, fmri_img, mask_img):
         self.log_pyqtSignal.emit("跳过功能连接计算（暂未实现完整逻辑）...")
         pass
