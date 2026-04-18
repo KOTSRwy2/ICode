@@ -1,86 +1,128 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,QFileDialog
-)
+# -*- coding: utf-8 -*-
+from datetime import datetime
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidgetItem, QHeaderView, QFileDialog, QApplication
 
-from qfluentwidgets import (
-    ScrollArea, SubtitleLabel, BodyLabel,ComboBox,PushButton,TextEdit,InfoBar,InfoBarPosition
-)
+from qfluentwidgets import TableWidget, EditableComboBox, StrongBodyLabel, PushButton, Theme
 from qfluentwidgets import FluentIcon as FIF
 
-from .core import log_manager, MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM
+from .core import (
+    log_manager, MODULE_SYSTEM, MODULE_EEG_SOURCE, 
+    MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_NETWORK
+)
 from ..common.style_sheet import StyleSheet
 
-class LogReportPage(ScrollArea):
-    """独立的系统中心日志监控面板"""
+
+class LogReportPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
-        self.setObjectName("Log_Report")
-        self.setWidgetResizable(True)
-        self.setFrameShape(self.NoFrame)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setObjectName("LogReportPageView")
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(36, 36, 36, 36)
+        self.layout.setSpacing(24)
+        self._init_style()
+        
+        # 标题
+        self.title = StrongBodyLabel("系统日志", self)
+        self.title.setStyleSheet("font-size: 20px; margin-bottom: 10px;")
+        
+        # 工具栏
+        self.tool_layout = QHBoxLayout()
+        self.module_filter = EditableComboBox(self)
+        self.module_filter.addItems(["全部模块", MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_NETWORK, MODULE_SYSTEM])
+        self.module_filter.currentIndexChanged.connect(self._update_table)
+        
+        self.btn_refresh = PushButton("手动刷新", self, FIF.SYNC)
+        self.btn_refresh.clicked.connect(self._update_table)
+        
+        # 导出日志按钮
+        self.btn_export = PushButton("导出日志", self, FIF.SAVE)
+        self.btn_export.clicked.connect(self._export_logs)
+        
+        # 清空日志按钮
+        self.btn_clear = PushButton("清空日志", self, FIF.DELETE)
+        self.btn_clear.clicked.connect(self._clear_logs)
 
+        self.tool_layout.addWidget(self.module_filter)
+        self.tool_layout.addStretch(1)
+        self.tool_layout.addWidget(self.btn_refresh)
+        self.tool_layout.addWidget(self.btn_export)
+        self.tool_layout.addWidget(self.btn_clear)
+        
+        # 表格
+        self.table = TableWidget(self)
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["时间", "模块", "内容"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        
+        self.layout.addWidget(self.title)
+        self.layout.addLayout(self.tool_layout)
+        self.layout.addWidget(self.table)
+        
+        # 定时器刷新
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_table)
+        self.timer.start(2000)
+        
+        self._update_table()
 
-        self.view = QWidget(self)
-        self.view.setObjectName("LogReportPageView")
+    def _update_table(self):
+        self.table.setRowCount(0)
+        filter_text = self.module_filter.text()
+        records = getattr(log_manager, 'records', [])
+        
+        for record in reversed(records):
+            mod = record.get("module", "")
+            if filter_text != "全部模块" and filter_text != mod:
+                continue
+            
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(record.get("time", "")))
+            self.table.setItem(row, 1, QTableWidgetItem(mod))
+            self.table.setItem(row, 2, QTableWidgetItem(record.get("text", "")))
 
-        self.main_layout = QVBoxLayout(self.view)
-        self.main_layout.setContentsMargins(36, 36, 36, 36)
-
-        self.title_label = SubtitleLabel("系统运行日志", self.view)
-        self.main_layout.addWidget(self.title_label)
-        self.main_layout.addSpacing(16)
-
-        # 过滤器与操作区
-        filter_layout = QHBoxLayout()
-        filter_layout.addWidget(BodyLabel("日志模块源:", self.view))
-
-        self.combo_filter = ComboBox(self.view)
-        self.combo_filter.addItems(["全部", MODULE_EEG_SOURCE, MODULE_EEG_CONN, MODULE_FMRI_ACT, MODULE_FMRI_CONN, MODULE_SYSTEM])
-        self.combo_filter.currentIndexChanged.connect(self._update_log_display)
-        filter_layout.addWidget(self.combo_filter)
-
-        self.btn_export = PushButton("导出日志报表", self.view, FIF.DOWNLOAD)
-        self.btn_export.clicked.connect(self._export_log)
-        filter_layout.addWidget(self.btn_export)
-
-        self.btn_clear = PushButton("清理屏幕", self.view, FIF.DELETE)
-        self.btn_clear.clicked.connect(self._clear_log)
-        filter_layout.addWidget(self.btn_clear)
-
-        filter_layout.addStretch(1)
-        self.main_layout.addLayout(filter_layout)
-
-        # 多行只读本文显示区
-        self.text_editor = TextEdit(self.view)
-        self.text_editor.setReadOnly(True)
-        self.text_editor.setPlaceholderText("暂无日志报告...")
-        self.main_layout.addWidget(self.text_editor, stretch=1)
-
-        self.setWidget(self.view)
-
-        # 绑定核心派发器刷新UI
-        log_manager.log_updated.connect(self._update_log_display)
-        StyleSheet.MAIN.apply(self)
-
-    def _update_log_display(self):
-        mod = self.combo_filter.currentText()
-        lines = log_manager.get_logs(mod)
-        self.text_editor.setPlainText("\n".join(lines))
-        self.text_editor.verticalScrollBar().setValue(self.text_editor.verticalScrollBar().maximum())
-
-    def _clear_log(self):
-        log_manager.clear()
-
-    def _export_log(self):
-        mod = self.combo_filter.currentText()
-        lines = log_manager.get_logs(mod)
-        if not lines:
-            InfoBar.warning("导出提示", "当前过滤器下没有可导出的日志。", parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
+    # 导出日志
+    def _export_logs(self):
+        records = getattr(log_manager, 'records', [])
+        if not records:
             return
 
-        path, _ = QFileDialog.getSaveFileName(self, "导出运行记录", f"system_logs_{mod}.txt", "Text Files (*.txt)")
-        if path:
-            with open(path, "w", encoding='utf-8') as f:
-                f.write("\n".join(lines))
-            InfoBar.success("导出完成", f"日志报告已落地到指定记录:\n{path}", parent=self.window(), position=InfoBarPosition.BOTTOM_RIGHT)
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "保存日志", f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            "日志文件 (*.txt);;所有文件 (*.*)"
+        )
+        if not filename:
+            return
+
+        filter_text = self.module_filter.text()
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("时间\t模块\t内容\n")
+            f.write("-"*80 + "\n")
+            
+            for record in reversed(records):
+                mod = record.get("module", "")
+                if filter_text != "全部模块" and filter_text != mod:
+                    continue
+                
+                time_str = record.get("time", "")
+                text = record.get("text", "")
+                f.write(f"{time_str}\t{mod}\t{text}\n")
+
+    # ====================== 清空日志 ======================
+    def _clear_logs(self):
+        if hasattr(log_manager, 'records'):
+            log_manager.records.clear()
+        self._update_table()
+
+    def _init_style(self):
+        StyleSheet.MAIN.apply(self)
+
+    def _on_theme_changed(self, theme: Theme):
+        """主题切换刷新样式 (由 main.py 调用)"""
+        StyleSheet.MAIN.apply(self)
+        self.update()
+        self.repaint()
+        QApplication.processEvents()

@@ -105,14 +105,12 @@ class InteractiveChartCard(CardWidget):
         self.enable_animation = enable_animation
         self.is_html = is_html
         self.is_expanded = True
+        self.is_loaded = False # 新增标识，防止重复加载
 
         self._init_ui()
 
         StyleSheet.INTERACTIVE_CHART_CARD.apply(self)
 
-    #Qwen3.5-Plus使用情况说明：2026年3月17日 17：00-17：30 使用AI按我的需求实现基础的页面布局框架，不含业务逻辑部分；
-    #对AI的框架进行修改样式和修复布局异常的问题，然后创建自定义的CustomWebEngine类来确保plotly交互逻辑正常
-    #在框架基础上还增加了动画页面部分，支持plotly动态图表的展示
     def _init_ui(self):
         # 整体竖向布局
         self.v_layout = QVBoxLayout(self)
@@ -170,14 +168,14 @@ class InteractiveChartCard(CardWidget):
         self.header_layout.addWidget(self.btn_export, 0, Qt.AlignTop)
         self.header_layout.addWidget(self.btn_expand, 0, Qt.AlignTop)
 
+        # === 2. Web 渲染区 (Content) ===
         if self.is_html:
             self.web_view = CustomWebEngineView(self)
             self.web_view.setMinimumHeight(400)
             self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             self.web_view.setObjectName("web_view")
 
-            if os.path.exists(self.file_path):
-                self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.file_path)))
+            # 【优化】不再在 init 时立即 load，改为由外部调用 load_chart() 触发
 
             self.content_widget = self.web_view
         else:
@@ -210,6 +208,20 @@ class InteractiveChartCard(CardWidget):
         # 组装总体布局
         self.v_layout.addLayout(self.header_layout)
         self.v_layout.addWidget(self.content_widget)
+
+    def load_chart(self):
+        """【新增】手动触发图表渲染，用于实现 staggered loading（交错加载）"""
+        if self.is_loaded:
+            return
+        
+        if self.is_html:
+            if os.path.exists(self.file_path):
+                self.web_view.load(QUrl.fromLocalFile(os.path.abspath(self.file_path)))
+        else:
+            # 图片类型直接在初始化时已经处理了，这里仅做兼容
+            pass
+            
+        self.is_loaded = True
 
     def _toggle_chart(self):
         """控制图表渲染区的展开与收起"""

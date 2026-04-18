@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import ast
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QMainWindow
 )
@@ -17,23 +17,73 @@ from pathlib import Path
 from ..common.path_utils import get_project_root
 
 class VisualizationWebWindow(QMainWindow):
-    """仅负责显示 HTML 可视化结果的子窗口（可全屏/可交互）"""
+    """【优化版】仅在内容完全加载后才显示窗口，避免空白感"""
+    ready_sig = pyqtSignal() # 新增信号：页面完全渲染稳定后发射
+    closed_sig = pyqtSignal() # 新增信号：窗口被关闭时发射
 
-    def __init__(self, html_path: str, title: str = "可视化结果", parent=None):
+    def __init__(self, html_path: str, title: str = "可视化结果", parent=None, status_callback=None):
         super().__init__(parent)
         self._html_path = html_path
+        self._status_callback = status_callback
+        self._activation_mode = "激活" in (title or "")
+        self._reload_once_pending = self._activation_mode
         self.setWindowTitle(title)
         self.resize(1280, 860)
 
-        self.web = CustomWebEngineView(self)
+        # 1. 立即初始化 WebEngine 但不显示窗口
+        self.central_widget = QWidget()
+        self.layout = QVBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.web = CustomWebEngineView(self, is_isolated=True) # 使用独立进程模式，确保互不干扰
+        self.layout.addWidget(self.web)
+        self.setCentralWidget(self.central_widget)
 
-        self.setCentralWidget(self.web)
-        self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
+        # 2. 监听加载完成信号，完成后再显示窗口
+        self.web.loadFinished.connect(self._on_load_finished)
+        
+        # 3. 开始加载
+        if self._status_callback:
+            self._status_callback("正在加载交互式分析报告...")
+            
+        abs_path = os.path.abspath(self._html_path)
+        self.web.load(QUrl.fromLocalFile(abs_path))
 
-        self.web.load(QUrl.fromLocalFile(os.path.abspath(html_path)))
+    def _on_load_finished(self, success):
+        """加载完成后弹出窗口"""
+        if success:
+            # 复现“弹窗显示后手动 reload 才正常”的路径：仅激活页自动执行一次
+            if self._reload_once_pending:
+                self._reload_once_pending = False
+                self.show()
+                self.raise_()
+                self.activateWindow()
+                QApplication.processEvents()
+                if self._status_callback:
+                    self._status_callback("检测到激活图需二次刷新，正在自动重载页面...")
+                QTimer.singleShot(120, self.web.reload)
+                return
 
+            # 【关键优化】额外等待 300ms，让 Plotly 内部 JS 完成初次布局绘制
+            if self._status_callback:
+                self._status_callback("报告渲染完成，正在启动交互窗口...")
+            QTimer.singleShot(300, self._show_and_focus)
 
+    def _show_and_focus(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        # 强制处理一次事件，确保交互即时响应
+        QApplication.processEvents()
+        if self._status_callback:
+            self._status_callback("报告已就绪。")
+        self.ready_sig.emit() # 通知外部：已经准备好了
 
+    def closeEvent(self, event):
+        self.closed_sig.emit()
+        super().closeEvent(event)
+
+# ===================== BaseFunctionPage 完全保持原样，不用动 =====================
 # 基础功能页面模板
 class BaseFunctionPage(ScrollArea):
     """提取四大功能页的共用逻辑：标题、文件选择、运行按钮、以及置底的进度条"""
@@ -141,12 +191,13 @@ class BaseFunctionPage(ScrollArea):
             parent=self.window()
         )
 
-    def show_html_in_subwindow(self, html_path: str, title: str):
+    def show_html_in_subwindow(self, html_path: str, title: str, status_callback=None):
         """仅显示逻辑：将 HTML 在 QWebEngineView 子窗口中打开"""
         if not html_path or not os.path.exists(html_path):
-            return
-        self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window())
-        self._viz_window.show()
+            return None
+        self._viz_window = VisualizationWebWindow(html_path, title=title, parent=self.window(), status_callback=status_callback)
+        # self._viz_window.show()  # 移除立即显示，改为由窗口内部加载完成后再显式弹出
+        return self._viz_window
 
     def _on_theme_changed(self, theme: Theme):
         StyleSheet.MAIN.apply(self)

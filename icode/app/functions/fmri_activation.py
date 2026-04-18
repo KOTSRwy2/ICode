@@ -23,7 +23,7 @@ def _get_project_root():
 
 
 def _get_fmri_output_dir():
-    output_dir = str(get_runtime_path("outputs", "fMRI"))
+    output_dir = str(get_runtime_path("outputs", "fMRI激活定位"))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
@@ -87,7 +87,9 @@ class FMRIActivationThread(QThread):
         if base_name.endswith('.nii'):
             base_name = base_name[:-4]
 
-        html_path = os.path.join(self.output_dir, f"{base_name}_activation.html")
+        sub_dir_main = os.path.join(self.output_dir, "fMRI脑区激活定位图")
+        os.makedirs(sub_dir_main, exist_ok=True)
+        html_path = os.path.join(sub_dir_main, f"{base_name}_activation.html")
 
         threshold = np.percentile(np.abs(fmri_mean.get_fdata()[fmri_mean.get_fdata() != 0]), 90)
         view = plotting.view_img(
@@ -201,7 +203,9 @@ class FMRIActivationThread(QThread):
             yaxis=dict(title='激活体素数', gridcolor='rgba(128,128,128,0.2)'),
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
         )
-        path1 = os.path.join(self.output_dir, f"{base_name}_curve.html")
+        sub_dir_curve = os.path.join(self.output_dir, "阈值-激活体素数曲线")
+        os.makedirs(sub_dir_curve, exist_ok=True)
+        path1 = os.path.join(sub_dir_curve, f"{base_name}_curve.html")
         fig1.write_html(path1, include_plotlyjs=True, full_html=True)
 
         self.html_injector.inject_all(path1, options={
@@ -232,7 +236,9 @@ class FMRIActivationThread(QThread):
             yaxis=dict(title='体素数量', gridcolor='rgba(128,128,128,0.2)'),
             font=dict(family="Segoe UI, Microsoft YaHei", color="#808080")
         )
-        path2 = os.path.join(self.output_dir, f"{base_name}_hist.html")
+        sub_dir_hist = os.path.join(self.output_dir, "激活强度分布直方图")
+        os.makedirs(sub_dir_hist, exist_ok=True)
+        path2 = os.path.join(sub_dir_hist, f"{base_name}_hist.html")
         fig2.write_html(path2, include_plotlyjs=True, full_html=True)
 
         self.html_injector.inject_all(path2, options={
@@ -257,8 +263,18 @@ class FMRIActivationThread(QThread):
             "threshold": float(threshold),
             "activated_voxels": int(np.sum(data > threshold))
         }
-        with open(os.path.join(self.output_dir, "activation_summary.json"), "w", encoding="utf-8") as f:
+        # 核心修改：添加base_name前缀，和其他文件命名统一
+        sub_dir_json = os.path.join(self.output_dir, "fMRI脑区激活总结")
+        os.makedirs(sub_dir_json, exist_ok=True)
+        summary_json_path = os.path.join(sub_dir_json, f"{base_name}_activation_summary.json")
+        with open(summary_json_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4, ensure_ascii=False)
 
+        results_paths['summary_json'] = summary_json_path
         self.log_pyqtSignal.emit("所有交互式图表已生成！")
         return results_paths
+
+    # 补充缺失的_compute_fmri_connectivity方法（避免运行报错）
+    def _compute_fmri_connectivity(self, fmri_img, mask_img):
+        self.log_pyqtSignal.emit("跳过功能连接计算（暂未实现完整逻辑）...")
+        pass

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 eeg_connectivity_visualization.py
 功能2：基于模板的 EEG 功能连接可视化
@@ -49,8 +49,8 @@ def _get_assets_dir() -> Path:
 
 
 def _get_outputs_dir() -> Path:
-    """返回输出目录 outputs/EEG，不存在则自动创建"""
-    outputs_dir = get_runtime_path("outputs", "EEG")
+    """返回输出目录 outputs/EEG功能连接，不存在则自动创建"""
+    outputs_dir = get_runtime_path("outputs", "EEG功能连接")
     outputs_dir.mkdir(exist_ok=True)
     return outputs_dir
 
@@ -659,24 +659,39 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
 
     try:
         logger("正在生成功能连接多维度统计分析图...")
-        # 之前的两个图
-        fc_matrix_path = _plot_fc_matrix(connectivity_matrix, label_names, outputs_dir, bdf_stem, html_injector)
-        fc_hubs_path = _plot_fc_node_degree(connectivity_matrix, label_names, outputs_dir, bdf_stem, html_injector)
+        # 1. 功能连接强度矩阵
+        sub_dir_matrix = outputs_dir / "功能连接强度矩阵"
+        sub_dir_matrix.mkdir(parents=True, exist_ok=True)
+        fc_matrix_path = _plot_fc_matrix(connectivity_matrix, label_names, sub_dir_matrix, bdf_stem, html_injector)
 
-        # 新增的两个图
-        fc_distribution_path = _plot_fc_distribution(connectivity_matrix, outputs_dir, bdf_stem, html_injector)
+        # 2. 网络核心枢纽排名图
+        sub_dir_hub = outputs_dir / "网络核心枢纽排名图"
+        sub_dir_hub.mkdir(parents=True, exist_ok=True)
+        fc_hub_path = _plot_fc_node_degree(connectivity_matrix, label_names, sub_dir_hub, bdf_stem, html_injector)
+
+        # 3. 连接强度分布直方图
+        sub_dir_dist = outputs_dir / "连接强度分布直方图"
+        sub_dir_dist.mkdir(parents=True, exist_ok=True)
+        fc_distribution_path = _plot_fc_distribution(connectivity_matrix, sub_dir_dist, bdf_stem, html_injector)
+
+        # 4. 距离-强度相关性散点图
+        sub_dir_distance = outputs_dir / "距离-强度相关性散点图"
+        sub_dir_distance.mkdir(parents=True, exist_ok=True)
         fc_distance_path = _plot_fc_distance_relation(
-            connectivity_matrix, labels, subject, subjects_dir, outputs_dir, bdf_stem, html_injector
+            connectivity_matrix, labels, subject, subjects_dir, sub_dir_distance, bdf_stem, html_injector
         )
 
-        logger(f"所有 FC 统计图（共4张）已保存至：{outputs_dir}")
+        logger(f"所有 FC 统计图已分类保存至：{outputs_dir}")
     except Exception as e:
-        logger(f"部分统计图生成失败: {str(e)}")
+        logger(f"部分统计图生成或目录创建失败: {str(e)}")
         import traceback
         logger(traceback.format_exc())
     # ======= 新增：统计图生成结束 =======
 
-    output_html = outputs_dir / f"{bdf_stem}_connectivity_map.html"
+    # 5. 3D 脑网络图 (main)
+    sub_dir_main = outputs_dir / "交互式EEG脑网络三维图"
+    sub_dir_main.mkdir(parents=True, exist_ok=True)
+    output_html = sub_dir_main / f"{bdf_stem}_connectivity_map.html"
 
     logger("后台计算完成，等待主线程生成 3D 场景并导出 HTML...")
     logger("========== 功能连接计算结束 ==========")
@@ -685,12 +700,12 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
         "subject": subject,
         "subjects_dir": str(subjects_dir),
         "labels": labels,
-        "label_names": label_names,  # 这里也返回一下，方便后面使用
+        "label_names": label_names,
         "connectivity_matrix": connectivity_matrix,
-        "output_html": str(output_html),
+        "main_path": str(output_html),
         "band_label": band_label,
         "fc_matrix_path": fc_matrix_path,
-        "fc_hubs_path": fc_hubs_path,
+        "fc_hub_path": fc_hub_path,
         "fc_distribution_path": fc_distribution_path,
         "fc_distance_path": fc_distance_path,
     }
@@ -705,18 +720,15 @@ def render_connectivity_html(result, logger=None):
     subjects_dir = result["subjects_dir"]
     labels = result["labels"]
     connectivity_matrix = result["connectivity_matrix"]
-    output_html = Path(result["output_html"])
-    fc_matrix_path = result["fc_matrix_path"]
-    fc_hubs_path = result["fc_hubs_path"]
-    fc_distribution_path = result["fc_distribution_path"]
-    fc_distance_path = result["fc_distance_path"]
-
-    results_path = {}
-    results_path['main'] = str(output_html)
-    results_path['fc_matrix_path'] = fc_matrix_path
-    results_path['fc_hubs_path'] = fc_hubs_path
-    results_path['fc_distribution_path'] = fc_distribution_path
-    results_path['fc_distance_path'] = fc_distance_path
+    output_html = Path(result["main_path"])
+    
+    results_path = {
+        'main': str(output_html),
+        'fc_matrix_path': result["fc_matrix_path"],
+        'fc_hub_path': result["fc_hub_path"],
+        'fc_distribution_path': result["fc_distribution_path"],
+        'fc_distance_path': result["fc_distance_path"]
+    }
 
     logger("========== 主线程渲染开始 ==========")
 

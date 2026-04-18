@@ -6,8 +6,14 @@
             "PingFang SC"
         ]
     },
+    "OSS": {
+        "AccessKeyId": "",
+        "AccessKeySecret": "",
+        "Bucket": "",
+        "Endpoint": "oss-cn-guangzhou.aliyuncs.com"
+    },
     "MainWindow": {
-        "ThemeColor": "#ffff3c3f",
+        "ThemeColor": "#ff0419ff",
         "ThemeMode": "Light"
     }
 }

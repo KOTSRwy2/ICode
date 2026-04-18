@@ -24,7 +24,7 @@ def _get_project_root():
 
 
 def _get_fmri_output_dir():
-    output_dir = str(get_runtime_path("outputs", "fMRI"))
+    output_dir = str(get_runtime_path("outputs", "fMRI功能连接"))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
@@ -268,7 +268,9 @@ class FMRIConnectivityThread(QThread):
             autosize=True
         )
 
-        pie_path = os.path.join(output_dir, f"{base_name}_connectivity_pie.html")
+        sub_dir_pie = os.path.join(output_dir, "正负功能连接比例饼图")
+        os.makedirs(sub_dir_pie, exist_ok=True)
+        pie_path = os.path.join(sub_dir_pie, f"{base_name}_pos_neg_pie.html")
         fig.write_html(pie_path, include_plotlyjs=True, full_html=True,
                        config={'responsive': True, 'displayModeBar': True,
                                'scrollZoom': False, 'displaylogo': False})
@@ -298,6 +300,7 @@ class FMRIConnectivityThread(QThread):
         :param roi_timeseries: 脑区时间序列 (n_regions, n_timepoints)
         :param output_dir: 输出目录
         :param tr: 重复时间（秒）
+        :param base_name: 输出文件前缀（数据集名称）
         :return: 滑动窗口可视化路径、统计数据路径
         """
         self.log_pyqtSignal.emit("开始绘制滑动窗口功能连接可视化...")
@@ -311,7 +314,7 @@ class FMRIConnectivityThread(QThread):
 
         if n_windows <= 0:
             self.log_pyqtSignal.emit(f"警告：无法生成有效滑动窗口（总时间点：{n_timepoints}，窗口：{self.window_size}）")
-            return None, None
+            return None, None, None, None
 
         self.log_pyqtSignal.emit(
             f"滑动窗口参数：窗口大小={self.window_size}个时间点({self.window_size * tr:.1f}s)，步长={self.step_size}个时间点({self.step_size * tr:.1f}s)，总窗口数={n_windows}")
@@ -618,7 +621,9 @@ class FMRIConnectivityThread(QThread):
             row=2, col=2
         )
 
-        path_metrics = os.path.join(output_dir, f"{base_name}_sliding_window_metrics.html")
+        sub_dir_metrics = os.path.join(output_dir, "滑动窗口功能连接动态指标图")
+        os.makedirs(sub_dir_metrics, exist_ok=True)
+        path_metrics = os.path.join(sub_dir_metrics, f"{base_name}_sliding_window_metrics.html")
         fig.write_html(path_metrics, include_plotlyjs=True, full_html=True,
                                config={'responsive': True, 'displayModeBar': True,
                                        'scrollZoom': True, 'displaylogo': False, 'autosizable': True})
@@ -670,7 +675,6 @@ class FMRIConnectivityThread(QThread):
                     colorbar=dict(
                         title='皮尔逊相关系数',
                         tickfont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#000000"),
-                        # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=12, color="#FFFFFF"),
                         len=0.8,
                         thickness=20
                     ) if idx == len(key_window_indices) - 1 else None,
@@ -701,7 +705,6 @@ class FMRIConnectivityThread(QThread):
                 title='脑区索引',
                 gridcolor='rgba(60,60,60,1)',
                 tickfont=dict(family="Segoe UI, Microsoft YaHei", size=8, color="#000000"),
-                # titlefont=dict(family="Segoe UI, Microsoft YaHei", size=10, color="#FFFFFF"),
                 scaleanchor="y" if idx == 1 else None,
                 scaleratio=1,
                 row=1,
@@ -719,7 +722,9 @@ class FMRIConnectivityThread(QThread):
                 ticks='outside',
             )
 
-        path_heatmap = os.path.join(output_dir, f"{base_name}_connectivity_heatmap.html")
+        sub_dir_heatmap = os.path.join(output_dir, "多时间窗口功能连接热力图")
+        os.makedirs(sub_dir_heatmap, exist_ok=True)
+        path_heatmap = os.path.join(sub_dir_heatmap, f"{base_name}_connectivity_heatmap.html")
         fig_heatmap.write_html(path_heatmap, include_plotlyjs=True, full_html=True,
                                config={'responsive': True, 'displayModeBar': True,
                                        'scrollZoom': True, 'displaylogo': False, 'autosizable': True})
@@ -732,19 +737,23 @@ class FMRIConnectivityThread(QThread):
         })
 
         # 4. 保存窗口指标到CSV
+        sub_dir_csv = os.path.join(output_dir, "滑动窗口动态指标csv文件的文件夹")
+        os.makedirs(sub_dir_csv, exist_ok=True)
         metrics_df = pd.DataFrame(window_metrics)
-        metrics_csv_path = os.path.join(output_dir, "fmri_sliding_window_metrics.csv")
+        metrics_csv_path = os.path.join(sub_dir_csv, f"{base_name}_sliding_window_metrics.csv")
         metrics_df.to_csv(metrics_csv_path, index=False, encoding='utf-8-sig')
 
-        # 5. 保存所有窗口的连接矩阵（用于后续分析）
-        np.save(os.path.join(output_dir, "fmri_sliding_window_conn_matrices.npy"),
-                np.array(window_conn_matrices))
+        # 5. 保存所有窗口的连接矩阵
+        sub_dir_npy = os.path.join(output_dir, "全窗口连接矩阵npy文件")
+        os.makedirs(sub_dir_npy, exist_ok=True)
+        npy_path = os.path.join(sub_dir_npy, f"{base_name}_sliding_window_conn_matrices.npy")
+        np.save(npy_path, np.array(window_conn_matrices))
 
         self.log_pyqtSignal.emit(f"滑动窗口指标图已保存：{path_metrics}")
         self.log_pyqtSignal.emit(f"典型窗口连接矩阵图已保存：{path_heatmap}")
         self.log_pyqtSignal.emit(f"滑动窗口指标数据已保存：{metrics_csv_path}")
 
-        return path_metrics, path_heatmap
+        return path_metrics, path_heatmap, metrics_csv_path, npy_path
 
 
 
@@ -859,6 +868,7 @@ class FMRIConnectivityThread(QThread):
         np.fill_diagonal(conn_matrix, 1.0)
         self.log_pyqtSignal.emit(f"生成功能连接矩阵")
 
+        # 提取输入文件的base_name，所有输出文件统一使用该前缀
         base_name = os.path.splitext(os.path.basename(self.fmri_nifti_path))[0]
         if base_name.endswith('.nii'):
             base_name = base_name[:-4]
@@ -932,8 +942,10 @@ class FMRIConnectivityThread(QThread):
             dtick = 10
         )
 
-        # ===== 保存文件 =====
-        path_full_heatmap = os.path.join(self.output_dir, "fmri_connectivity_heatmap_full.html")
+        # ===== 保存文件 (全脑功能连接矩阵) =====
+        sub_dir_full_heatmap = os.path.join(self.output_dir, "全脑功能连接矩阵")
+        os.makedirs(sub_dir_full_heatmap, exist_ok=True)
+        path_full_heatmap = os.path.join(sub_dir_full_heatmap, f"{base_name}_connectivity_heatmap_full.html")
         fig.write_html(
             path_full_heatmap,
             include_plotlyjs=True,
@@ -957,16 +969,22 @@ class FMRIConnectivityThread(QThread):
 
         self.log_pyqtSignal.emit(f"完整连接矩阵热力图已保存：{path_full_heatmap}")
 
-        pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir)
+        # 修改：传入base_name参数，确保饼图文件使用正确前缀
+        pie_path, pos_neg_stats = self._plot_pos_neg_connectivity_pie(conn_matrix, self.output_dir, base_name=base_name)
         results_paths['pie_path'] = pie_path
         results_paths['path_full_heatmap'] = path_full_heatmap
 
-        path_metrics, path_heatmap = self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr)
+        # 修改：传入base_name参数，确保滑动窗口相关文件使用正确前缀
+        path_metrics, path_heatmap, path_csv, path_npy = self._plot_sliding_window_connectivity(roi_timeseries, self.output_dir, self.tr, base_name=base_name)
         results_paths['path_metrics'] = path_metrics
         results_paths['path_heatmap'] = path_heatmap
+        results_paths['path_csv'] = path_csv
+        results_paths['path_npy'] = path_npy
         self.log_pyqtSignal.emit("生成交互式HTML脑网络...")
 
-        html_path = os.path.join(self.output_dir, f"{base_name}_connectivity.html")
+        sub_dir_main = os.path.join(self.output_dir, "3D交互式功能连接脑网络图")
+        os.makedirs(sub_dir_main, exist_ok=True)
+        html_path = os.path.join(sub_dir_main, f"{base_name}_connectivity.html")
 
         edge_threshold = "90%"
 
@@ -1024,3 +1042,8 @@ class FMRIConnectivityThread(QThread):
         results_paths['main'] = html_path
 
         return results_paths
+
+    # 补充缺失的可视化方法（避免运行报错）
+    def _visualize_fmri_activation(self, fmri_img, mask_img):
+        self.log_pyqtSignal.emit("跳过激活可视化（已在独立线程实现）...")
+        pass

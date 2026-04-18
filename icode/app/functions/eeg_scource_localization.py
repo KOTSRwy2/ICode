@@ -43,8 +43,8 @@ def _get_assets_dir():
 
 
 def _get_outputs_dir():
-    """返回输出目录 outputs/EEG，不存在则自动创建"""
-    outputs_dir = get_runtime_path("outputs", "EEG")
+    """返回输出目录 outputs/EEG源定位，不存在则自动创建"""
+    outputs_dir = get_runtime_path("outputs", "EEG源定位")
     outputs_dir.mkdir(parents=True, exist_ok=True)
     return outputs_dir
 
@@ -280,8 +280,10 @@ def _plot_source_intensity_hist_plotly(stc, output_dir, bdf_stem, html_injector)
     ax2.legend(loc='upper right', fontsize=9)
 
     fig2.tight_layout()
-    fig2.savefig(output_dir / "source_intensity_hist.png", dpi=300)
-    hist_path = os.path.join(output_dir, f"source_intensity_hist.png")
+    
+    hist_filename = f"{bdf_stem}_source_intensity_hist.png"
+    fig2.savefig(output_dir / hist_filename, dpi=300)
+    hist_path = os.path.join(output_dir, hist_filename)
     return hist_path
 
 
@@ -705,31 +707,42 @@ def compute_source_localization(
         times = stc.times * 1000
         mean_data = np.mean(np.abs(stc.data), axis=0)
 
-        # 1. 时间序列图
+        # 1. 时间序列图 (全球功率时间曲线图)
+        sub_dir_gfp = eeg_output_dir / "全球功率时间曲线图"
+        sub_dir_gfp.mkdir(parents=True, exist_ok=True)
         time_course_path = _plot_source_time_course_plotly(
-            stc, eeg_output_dir, bdf_stem, band_label, html_injector
+            stc, sub_dir_gfp, bdf_stem, band_label, html_injector
         )
 
-        # 2. 强度直方图
+        # 2. 强度直方图 (激活强度分布直方图)
+        sub_dir_hist = eeg_output_dir / "激活强度分布直方图"
+        sub_dir_hist.mkdir(parents=True, exist_ok=True)
         hist_path = _plot_source_intensity_hist_plotly(
-            stc, eeg_output_dir, bdf_stem, html_injector
+            stc, sub_dir_hist, bdf_stem, html_injector
         )
 
-        # 3. 脑区激活排名
+        # 3. 脑区激活排名 (脑区激活 TOP15 柱状图)
+        sub_dir_top15 = eeg_output_dir / "脑区激活 TOP15 柱状图"
+        sub_dir_top15.mkdir(parents=True, exist_ok=True)
         region_path = _plot_region_activation_bar_plotly(
-            stc, str(subjects_dir), eeg_output_dir, bdf_stem, html_injector
+            stc, str(subjects_dir), sub_dir_top15, bdf_stem, html_injector
         )
 
-        # 4. 频谱 PSD
+        # 4. 频谱 PSD (源活动功率谱密度图)
+        sub_dir_psd = eeg_output_dir / "源活动功率谱密度图"
+        sub_dir_psd.mkdir(parents=True, exist_ok=True)
         psd_path = _plot_source_psd_plotly(
-            stc, raw, eeg_output_dir, bdf_stem, html_injector
+            stc, raw, sub_dir_psd, bdf_stem, html_injector
         )
 
-        logger(f"所有 4 张 Plotly 统计分析图已保存至：{eeg_output_dir}")
+        # 5. 3D 源定位图 (main)
+        sub_dir_main = eeg_output_dir / "EEG源定位图"
+        sub_dir_main.mkdir(parents=True, exist_ok=True)
+        main_path = str(sub_dir_main / f"{bdf_stem}_source_map.html")
 
-        logger(f"所有 4 张统计分析图已保存至: {eeg_output_dir}")
+        logger(f"所有统计分析图已分类保存至：{eeg_output_dir}")
     except Exception as e:
-        logger(f"统计图生成失败: {str(e)}")
+        logger(f"统计图生成或目录创建失败: {str(e)}")
 
     logger("源定位计算完成，准备返回主线程显示 3D 窗口。")
     logger("========== 模板源定位计算结束 ==========")
@@ -741,19 +754,23 @@ def compute_source_localization(
         "initial_time": initial_time,
         "band_label": band_label,
         "plot_theme": plot_theme,
-        'time_course_path': time_course_path,
-        'hist_path': hist_path,
-        'region_path': region_path,
-        'psd_path': psd_path
+        "main": main_path,
+        "gfp_path": time_course_path,
+        "hist_path": hist_path,
+        "top15_path": region_path,
+        "psd_path": psd_path
     }
 
 
-def show_source_localization_window(result, logger=None):
+def show_source_localization_window(result, html_output_path: str = None, logger=None):
     """
-    只负责在主线程中弹出 3D 窗口
+    只负责在主线程中弹出 3D 窗口，可选保存为 HTML 文件。
     """
     if logger is None:
         logger = _default_logger
+
+    if html_output_path is None:
+        html_output_path = result.get("main")
 
     stc = result["stc"]
     subject = result["subject"]
@@ -774,7 +791,6 @@ def show_source_localization_window(result, logger=None):
         bg_color = "black"
         fg_color = None
 
-    # Qwen3.5-Plus使用情况说明：2026年3月15日 14:30–15:15 plot函数参考AI给出示例，和官方文档进行样式编写。在AI示例之上扩展了主体色适配的功能，编写了_apply_mne_window_theme函数实现了主体的适应
     brain = stc.plot(
         subject=subject,
         subjects_dir=subjects_dir,
@@ -794,6 +810,15 @@ def show_source_localization_window(result, logger=None):
     )
 
     _apply_mne_window_theme(plot_theme)
+
+    if html_output_path:
+        try:
+            os.makedirs(os.path.dirname(html_output_path), exist_ok=True)
+            logger(f"正在将源定位 3D 窗口导出为 HTML：{html_output_path}")
+            brain.plotter.export_html(html_output_path)
+            logger(f"源定位 3D HTML 已保存：{html_output_path}")
+        except Exception as exc:
+            logger(f"保存源定位 HTML 失败：{exc}")
 
     logger("模板源定位完成。")
     logger("========== 模板源定位结束 ==========")

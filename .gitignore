@@ -213,3 +213,24 @@ icode-2/outputs/fMRI激活定位/fMRI脑区激活定位图/mprage_activation.htm
 icode-2/outputs/fMRI激活定位/fMRI脑区激活总结/mprage_activation_summary.json
 icode-2/outputs/fMRI激活定位/激活强度分布直方图/mprage_hist.html
 icode-2/outputs/fMRI激活定位/阈值-激活体素数曲线/mprage_curve.html
+icode/outputs/EEG功能连接/交互式EEG脑网络三维图/data(1)_connectivity_map.html
+icode/outputs/EEG功能连接/功能连接强度矩阵/data(1)_fc_matrix.html
+icode/outputs/EEG功能连接/网络核心枢纽排名图/data(1)_fc_hubs.html
+icode/outputs/EEG功能连接/距离-强度相关性散点图/data(1)_fc_distance_corr.html
+icode/outputs/EEG功能连接/连接强度分布直方图/data(1)_fc_distribution.html
+icode/outputs/EEG源定位/EEG源定位图/data(1)_source_map.html
+icode/outputs/EEG源定位/全球功率时间曲线图/data(1)_source_time_course.html
+icode/outputs/EEG源定位/源活动功率谱密度图/data(1)_source_psd_analysis.html
+icode/outputs/EEG源定位/激活强度分布直方图/data(1)_source_intensity_hist.png
+icode/outputs/EEG源定位/脑区激活 TOP15 柱状图/data(1)_region_activation_bar.html
+icode/outputs/fMRI功能连接/3D交互式功能连接脑网络图/rest_connectivity.html
+icode/outputs/fMRI功能连接/全窗口连接矩阵npy文件/rest_sliding_window_conn_matrices.npy
+icode/outputs/fMRI功能连接/全脑功能连接矩阵/rest_connectivity_heatmap_full.html
+icode/outputs/fMRI功能连接/多时间窗口功能连接热力图/rest_connectivity_heatmap.html
+icode/outputs/fMRI功能连接/正负功能连接比例饼图/rest_pos_neg_pie.html
+icode/outputs/fMRI功能连接/滑动窗口功能连接动态指标图/rest_sliding_window_metrics.html
+icode/outputs/fMRI功能连接/滑动窗口动态指标csv文件的文件夹/rest_sliding_window_metrics.csv
+icode/outputs/fMRI激活定位/fMRI脑区激活定位图/mprage_activation.html
+icode/outputs/fMRI激活定位/fMRI脑区激活总结/mprage_activation_summary.json
+icode/outputs/fMRI激活定位/激活强度分布直方图/mprage_hist.html
+icode/outputs/fMRI激活定位/阈值-激活体素数曲线/mprage_curve.html

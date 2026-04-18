@@ -37,18 +37,27 @@ QWidget#FunctionPageView {
 
 /* 状态容器 - 深色主题下的背景色 */
 QWidget#status_container {
-    background-color: rgb(56, 56, 56);
+    background-color: rgb(45, 45, 45);
     border-radius: 4px;
     padding: 8px;
 }
 
-/* 日志页面 */
-ScrollArea#LogReportPageView {
-    background-color: transparent;
+/* 卡片与文本框基础样式对齐 */
+CardWidget {
+    background-color: rgb(39, 39, 39);
+    border: 1px solid rgb(56, 56, 56);
+    border-radius: 8px;
 }
 
-/* 设置页面 */
-#LogReportPageView, #SettingsPageView, ScrollArea#SettingsPageView {
+TextEdit {
+    background-color: rgb(39, 39, 39);
+    border: 1px solid rgb(56, 56, 56);
+    border-radius: 6px;
+    color: rgb(240, 240, 240);
+}
+
+/* 日志页面与设置页面视口透明 */
+#LogReportPageView, #SettingsPageView, ScrollArea#SettingsPageView, ScrollArea#LogReportPageView {
     background-color: transparent;
 }
 
