@@ -74,7 +74,7 @@ class FMRIActivationThread(QThread):
         fmri_preprocessed = masking.unmask(fmri_masked, mask_img)
         return fmri_preprocessed, mask_img
 
-
+    # AI辅助生成：豆包4.0, 2026-3-26
     def _visualize_fmri_activation(self, fmri_img, mask_img):
         self.log_pyqtSignal.emit("生成fMRI激活可视化HTML...")
         fmri_mean = image.mean_img(fmri_img)
@@ -250,7 +250,7 @@ class FMRIActivationThread(QThread):
 
         results_paths['histogram'] = path2
 
-        # 6. 脑区激活总结JSON
+        # 4. 脑区激活总结JSON
         self.log_pyqtSignal.emit("生成脑区激活总结...")
         peak_coords = plotting.find_xyz_cut_coords(fmri_mean)
         # 统一转换为列表
@@ -275,6 +275,3 @@ class FMRIActivationThread(QThread):
         return results_paths
 
 
-    def _compute_fmri_connectivity(self, fmri_img, mask_img):
-        self.log_pyqtSignal.emit("跳过功能连接计算（暂未实现完整逻辑）...")
-        pass

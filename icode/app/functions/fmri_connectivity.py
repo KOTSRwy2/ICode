@@ -76,6 +76,7 @@ class FMRIConnectivityThread(QThread):
             self.log_pyqtSignal.emit(f"fMRI处理出错：{str(e)}")
             QMessageBox.critical(None, "错误", f"fMRI处理失败：{str(e)}")
 
+    # AI辅助生成：豆包4.0, 2026-4-06
     def _preprocess_fmri(self):
         self.log_pyqtSignal.emit("读取fMRI NIfTI文件...")
         fmri_img = nib.load(self.fmri_nifti_path)
@@ -1040,6 +1041,3 @@ class FMRIConnectivityThread(QThread):
 
         return results_paths
 
-    def _visualize_fmri_activation(self, fmri_img, mask_img):
-        self.log_pyqtSignal.emit("跳过激活可视化（已在独立线程实现）...")
-        pass
