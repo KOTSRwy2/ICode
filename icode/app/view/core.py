@@ -110,7 +110,7 @@ UPLOAD_CONFIG = {
 
 from ..common.config import cfg
 
-# OSS 基础上传函数
+# OSS 基础上传函数 AI辅助生成：DeepSeek-R1-2026, 2026-03-24 AI辅助生成OSS上传函数，包含错误处理和日志记录
 def _oss_internal_put(file_path, folder):
     try:
         access_key_id = cfg.ossAccessKeyId.value
