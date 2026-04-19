@@ -478,6 +478,7 @@ def _plot_fc_distance_relation(con_matrix, labels, subject, subjects_dir, output
     print(f"距离 - 强度相关性图已保存：{fc_distance_path}")
     return fc_distance_path
 
+# AI辅助生成：豆包大模型2.0，2026-3-17
 def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_band="full"):
     """后台线程执行：只做 EEG 功能连接计算，不创建 3D 场景"""
     if logger is None:
@@ -657,6 +658,7 @@ def compute_connectivity_data(bdf_path, logger=None, duration_sec=10, analysis_b
     fc_distribution_path = ""
     fc_distance_path = ""
 
+    #AI辅助生成：豆包大模型2.0，2026-4-10
     try:
         logger("正在生成功能连接多维度统计分析图...")
         # 1. 功能连接强度矩阵

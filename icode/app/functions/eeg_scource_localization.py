@@ -525,7 +525,7 @@ def _plot_source_psd_plotly(stc, raw, output_dir, bdf_stem, html_injector):
     print(f"源活动相对功率谱图已保存：{psd_path}")
     return psd_path
 
-
+# AI辅助生成：豆包大模型2.0，2026-3-17
 def compute_source_localization(
         bdf_path,
         logger=None,
@@ -691,6 +691,7 @@ def compute_source_localization(
 
     initial_time = float(stc.times[len(stc.times) // 2])
 
+    #AI辅助生成：豆包大模型2.0，2026-4-12
     time_course_path = ""
     hist_path = ""
     region_path = ""
