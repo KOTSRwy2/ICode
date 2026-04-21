@@ -3,8 +3,7 @@
 ![Version](https://img.shields.io/badge/version-1.01-blue)
 ![Platform|116](https://img.shields.io/badge/platform-Windows-green)
 
-`快速功能导航`： [EEG 源定位可视化](#eeg-源定位可视化) | [EEG 功能连接分析](#eeg-功能连接分析) | [fMRI 脑区激活定位](#fmri-脑区激活定位) | [fMRI 功能连接分析](#fmri-功能连接分析)
-
+`快速功能导航`： [EEG 源定位可视化](#eeg-源定位可视化) | [EEG 功能连接分析](#eeg-功能连接分析) | [fMRI 脑区激活定位](#fmri-脑区激活定位) | [fMRI 功能连接分析](#fmri-功能连接分析)| [网络与云服务](#网络与云服务)
 > [!tip]
 > 本文档包含多个演示动图，请耐心等待动图加载完成
 
@@ -113,6 +112,21 @@
 <img width="1345" height="749" alt="fMRI2_2" src="https://github.com/user-attachments/assets/14ae2d13-035d-40f1-9b23-ac86ad42da14" />
 <img width="1348" height="803" alt="fMRI2_3" src="https://github.com/user-attachments/assets/33ad18ee-9411-4131-b106-de79a9f454c6" />
 <img width="1343" height="753" alt="fMRI2_4" src="https://github.com/user-attachments/assets/0e41d06c-0f5b-420f-9f31-c81768fcfadf" />
+
+### **网络与云端成果共享**
+左侧栏选择“网络与云服务”模块，可进行云存储配置与网络链路检测。系统支持自动校验OSS参数、连通性探测与传输状态实时显示，能够自适应弱网、内网等多种网络环境，并给出清晰的状态提示。
+
+<img width="1480" height="958" alt="Image" src="https://github.com/user-attachments/assets/47474770-d803-4bf1-851f-c5d337ffb0ca" />
+
+完成任意模态分析后，可一键将HTML交互报告、可视化图表、配置文件等成果加密上传至云端。系统采用后台异步传输，不阻塞界面操作，同时支持断点续传与异常自动重试，保证文件传输稳定可靠。
+
+<img width="1579" height="569" alt="Image" src="https://github.com/user-attachments/assets/8c6c86f5-6f9b-4e27-81bb-989597afef15" />
+
+上传完成后，系统自动生成带权限管理的访问链接，用户可在任意设备浏览器中打开完整交互式可视化成果，无需依赖本地环境、无需重复运行分析程序，极大提升教学答辩、课程汇报与远程协作的展示与传播效率。
+
+<img width="1483" height="404" alt="Image" src="https://github.com/user-attachments/assets/35cb6d42-8254-4fa6-a307-dfaf0ecbc4bd" />
+
+本模块可实现本地高效分析与云端便捷共享的无缝联动，在保证弱网/无网环境下流畅运行的同时，实现成果轻量化、安全化跨端分发。
 
 ## ⚙️ 系统配置
 ### 接入plotly可交互图表
