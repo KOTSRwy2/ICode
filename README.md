@@ -1,6 +1,6 @@
 # 🧠 NeuroScope - 多模态脑信号可视化分析平台
 
-![Version](https://img.shields.io/badge/version-1.00-blue)
+![Version](https://img.shields.io/badge/version-1.01-blue)
 ![Platform|116](https://img.shields.io/badge/platform-Windows-green)
 
 `快速功能导航`： [EEG 源定位可视化](#eeg-源定位可视化) | [EEG 功能连接分析](#eeg-功能连接分析) | [fMRI 脑区激活定位](#fmri-脑区激活定位) | [fMRI 功能连接分析](#fmri-功能连接分析)
@@ -59,7 +59,7 @@
 
 ### 3. 启动项目
 双击 main.exe 后等待程序运行，弹出软件界面则项目运行成功
-<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/6cfa3b5f-68f5-449b-8d62-f1447a397b3c" />
+<img width="1500" height="975" alt="platform" src="https://github.com/user-attachments/assets/8471f553-1d38-4c3f-b225-b5b40cbd3dd3" />
 ## ✨ 核心功能 
 
 ### **EEG 源定位可视化**
@@ -67,7 +67,8 @@
 然后在输入栏填入或通过右方浏览文件按钮选中.bdf EEG文件以加载数据
 下方有两栏可选分析参数，能够选择EEG截取的时长以及分析的EEG频段
 调整好参数后点击下方执行EEG源定位即可开始分析
-<img width="1500" height="975" alt="EEG SourceLocalization" src="https://github.com/user-attachments/assets/7729d33f-e1c4-490e-aa68-f50ae59d1a28" />
+<img width="1500" height="975" alt="platform" src="https://github.com/user-attachments/assets/bc2ab468-a2bc-4a50-aa50-3a6f2bd211e6" />
+
 分析完后弹出交互式 EEG 源定位分析主图，该页面基于标准 fsaverage 模板脑，将 EEG 数据经 dSPM 源重建算法计算得到的皮层神经活动分布映射到三维大脑空间，生成可交互、多视角同步显示的皮层源定位图。它是 EEG 源定位分析中最核心的空间可视化结果。
 图中通过颜色映射直观呈现脑皮层各区域的激活（电流密度）强度，暖色调代表高强度的神经电活动。用户可通过鼠标进行旋转、缩放等交互操作，并支持时间轴动画播放，可灵活切换双侧脑、单侧脑等多种观察视角以精确定位激活区域。
 ![eeg_source_localization_main](https://github.com/user-attachments/assets/c4198724-8438-4056-8dfc-55a8b92ea7c7)
@@ -116,19 +117,20 @@
 ## ⚙️ 系统配置
 ### 接入plotly可交互图表
 本项目大多数图表使用的是plotly可交互图表，基于html渲染，支持悬浮显示数据、框选缩放、自动调整大小、保存为html可交互图表与png静态图等基础操作。此外本系统对于部分统计图表增加了动画支持，用户可以播放、暂停与重载动画，以方便更好地观察数据趋势与局部细节。
-![animate_demo](https://github.com/user-attachments/assets/116d2611-fa4f-4072-8923-699b149cb302)
+<img width="1502" height="977" alt="plotly_chart" src="https://github.com/user-attachments/assets/78d12a8b-2c17-49fe-b327-834ccceb1d7d" />
 
 ### 卡片解释组件
 每张可视化图表都提供图表解释文本与配图，帮助使用者更好地理解图表意义。
-![card](https://github.com/user-attachments/assets/7087b797-2faa-42ef-8b8c-08d7dddbc160)
+<img width="1711" height="977" alt="info_card" src="https://github.com/user-attachments/assets/603829a5-21e0-43cd-a3ac-f0f98f7d3c3e" />
 
 ### 日志管理器
 本项目使用日志管理器统一管理日志文件，支持清空、分类显示和下载的功能
-![log_manager](https://github.com/user-attachments/assets/eb83f135-3703-4692-a6e7-9ae92e006596)
+<img width="1481" height="977" alt="setting_page" src="https://github.com/user-attachments/assets/14db6475-a54b-4b94-996a-5e51d5baef8c" />
 
 ### 主题切换
 本项目支持切换主题、主题色，以符合不同用户的使用习惯
-![Theme_change](https://github.com/user-attachments/assets/14700ac3-a539-49c4-81d4-60964005836c)
+<img width="1481" height="977" alt="settings" src="https://github.com/user-attachments/assets/33f5412c-42e1-49e5-9b8c-d47616261587" />
+
 
 ## ❓ 常见问题 (FAQ)
 
