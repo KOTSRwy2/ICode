@@ -96,7 +96,7 @@
 ### **fMRI 脑区激活定位**
 传入nii或nii.gz文件点击分析
 分析完成后弹出交互式 fMRI 脑激活空间定位界面基于 MNI152 标准脑模板，将 fMRI 数据经统计计算得到的激活值映射到三维大脑空间，生成可交互、多视角同步显示的脑激活定位图，能够清晰、直观地呈现任务态或静息态下大脑的神经活动分布与强度差异，是 fMRI 激活分析中最核心、最常用的空间可视化结果。
-![fMRI_Activation](https://github.com/user-attachments/assets/15b51928-6c34-4475-9110-6420e12883d7)
+<img width="1590" height="1007" alt="fMRI_activation" src="https://github.com/user-attachments/assets/9742e500-d3f7-4d31-96ae-2cbd517781ef" />
 
 同时在软件页面生成两类图：阈值-体素数变化曲线以动画形式呈现阈值提升与激活体素数量下降的对应关系，提供了动画播放，暂停，重载的功能，方便使用者更细致地观察数据整体趋势和局部数据，直观展示结果；激活强度直方图呈现全脑体素激活强度分布，并以虚线自动标注 90% 显著性阈值，便于快速判断激活程度与显著性。所有统计图表均[基于plotly可进行可交互展示](#接入plotly可交互图表)
 <img width="1341" height="754" alt="fMRI1_1" src="https://github.com/user-attachments/assets/54e621e0-6c73-422b-a170-0783cff21cb9" />
